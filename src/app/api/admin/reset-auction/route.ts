@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
 import { resetCompleteAuction } from '@/lib/auction-service';
+import { connection } from 'next/server';
 
 export async function POST(req: Request) {
   try {
+    await connection();
     const user = await getCurrentUser();
     if (!user || user.role !== 'super_admin') {
       return NextResponse.json({ error: 'Unauthorized: Only Super Admin can perform auction reset' }, { status: 403 });

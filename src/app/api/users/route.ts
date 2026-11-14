@@ -3,9 +3,11 @@ import { db } from '@/lib/db';
 import { getCurrentUser } from '@/lib/auth';
 import { logAudit } from '@/lib/auction-service';
 import crypto from 'crypto';
+import { connection } from 'next/server';
 
 export async function GET() {
   try {
+    await connection();
     const user = await getCurrentUser();
     if (!user || user.role !== 'super_admin') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
@@ -27,6 +29,7 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
+    await connection();
     const user = await getCurrentUser();
     if (!user || user.role !== 'super_admin') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
@@ -63,6 +66,7 @@ export async function POST(req: Request) {
 
 export async function DELETE(req: Request) {
   try {
+    await connection();
     const user = await getCurrentUser();
     if (!user || user.role !== 'super_admin') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });

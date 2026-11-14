@@ -2,9 +2,11 @@ import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
 import { createDatabaseBackup, logAudit } from '@/lib/auction-service';
 import { db } from '@/lib/db';
+import { connection } from 'next/server';
 
 export async function GET() {
   try {
+    await connection();
     const user = await getCurrentUser();
     if (!user || user.role !== 'super_admin') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
@@ -19,6 +21,7 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
+    await connection();
     const user = await getCurrentUser();
     if (!user || user.role !== 'super_admin') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });

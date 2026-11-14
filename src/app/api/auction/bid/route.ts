@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
 import { placeBid } from '@/lib/auction-service';
+import { connection } from 'next/server';
 
 export async function POST(req: Request) {
   try {
+    await connection();
     const user = await getCurrentUser();
     if (!user) {
       return NextResponse.json({ error: 'You must be logged in to bid' }, { status: 401 });

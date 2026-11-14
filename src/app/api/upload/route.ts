@@ -5,12 +5,14 @@ import { logAudit } from '@/lib/auction-service';
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
+import { connection } from 'next/server';
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
 const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg'];
 
 export async function POST(req: Request) {
   try {
+    await connection();
     const user = await getCurrentUser();
     if (!user || !['super_admin', 'organiser_1', 'organiser_2'].includes(user.role)) {
       return NextResponse.json(

@@ -2,9 +2,11 @@ import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { createSessionCookie, COOKIE_NAME } from '@/lib/auth';
 import { User } from '@/types';
+import { connection } from 'next/server';
 
 export async function POST(req: Request) {
   try {
+    await connection();
     const { username, password } = await req.json();
 
     if (!username || !password) {
