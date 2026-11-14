@@ -1,0 +1,438 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: {userId} (UUID, Firebase Auth UID, or slug like usr-admin)
+    // Fields:
+    //   - id: string (required, 1-64 chars, immutable)
+    //   - username: string (required, 2-50 chars)
+    //   - name: string (required, 2-100 chars)
+    //   - role: string (required, 'super_admin' | 'organiser_1' | 'organiser_2' | 'captain' | 'viewer')
+    //   - team_id: string (optional, nullable, 1-64 chars)
+    //   - created_at: timestamp or ISO string (optional, immutable)
+    //
+    // Collection: auction_events
+    // Document ID: {eventId} (e.g. 'kpl-2026')
+    // Fields:
+    //   - id: string (required, 1-64 chars, immutable)
+    //   - name: string (required, 2-100 chars)
+    //   - year: number (required, 2000-2100)
+    //   - status: string (required, enum: 'not_started' | 'drawing' | 'drawn' | 'bidding' | 'paused' | 'sold' | 'unsold' | 'completed')
+    //   - initial_budget: number (required, 0-10000)
+    //   - current_player_id: string (optional, nullable, 1-64 chars)
+    //   - current_bid: number (required, 0-10000)
+    //   - current_bid_team_id: string (optional, nullable, 1-64 chars)
+    //   - bid_timer: number (required, 0-600)
+    //   - timer_duration: number (required, 5-600)
+    //   - draw_category: string (required, max 30 chars)
+    //   - updated_at: timestamp or ISO string (optional)
+    //
+    // Collection: teams
+    // Document ID: {teamId} (UUID or slug like team-mt)
+    // Fields:
+    //   - id: string (required, 1-64 chars, immutable)
+    //   - name: string (required, 2-100 chars)
+    //   - code: string (required, 2-10 chars)
+    //   - logo_url: string (optional, max 500 chars)
+    //   - primary_color: string (required, max 20 chars)
+    //   - secondary_color: string (required, max 20 chars)
+    //   - captain_id: string (optional, nullable, 1-64 chars)
+    //   - captain_name: string (required, 1-100 chars)
+    //   - initial_budget: number (required, 0-10000)
+    //   - retention_spent: number (optional, >= 0)
+    //   - auction_spent: number (optional, >= 0)
+    //   - remaining_budget: number (optional, >= 0)
+    //   - players_count: number (optional, 0-100)
+    //   - created_at: timestamp or ISO string (optional, immutable)
+    //
+    // Collection: players
+    // Document ID: {playerId} (UUID or slug like ply-001)
+    // Fields:
+    //   - id: string (required, 1-64 chars, immutable)
+    //   - player_number: string (required, 2-20 chars)
+    //   - name: string (required, 2-100 chars)
+    //   - photo_url: string (optional, max 500 chars)
+    //   - gender: string (required, 'Male' | 'Female')
+    //   - age: number (optional, nullable, 10-80)
+    //   - role: string (required, 'Batsman' | 'Bowler' | 'All-rounder' | 'Wicketkeeper')
+    //   - category: string (required, 1-50 chars)
+    //   - base_price: number (required, 0-1000)
+    //   - contact: string (optional, nullable, max 50 chars)
+    //   - is_active: bool or number (optional, 0 | 1 | boolean)
+    //   - status: string (required, enum: 'available' | 'retained' | 'in_auction' | 'sold' | 'unsold')
+    //   - sold_price: number (optional, nullable, 0-10000)
+    //   - sold_to_team_id: string (optional, nullable, 1-64 chars)
+    //   - created_at: timestamp or ISO string (optional, immutable)
+    //
+    // Collection: team_retentions
+    // Document ID: {retentionId} (UUID or string)
+    // Fields:
+    //   - id: string (required, 1-64 chars, immutable)
+    //   - team_id: string (required, 1-64 chars)
+    //   - player_id: string (required, 1-64 chars)
+    //   - points: number (required, 0-500)
+    //   - created_at: timestamp or ISO string (optional, immutable)
+    //
+    // Collection: random_draws
+    // Document ID: {drawId} (UUID or string)
+    // Fields:
+    //   - id: string (required, 1-64 chars, immutable)
+    //   - auction_event_id: string (required, 1-64 chars)
+    //   - player_id: string (required, 1-64 chars)
+    //   - draw_category: string (required, 1-50 chars)
+    //   - drawn_by_user_id: string (required, 1-64 chars)
+    //   - confirmed: number or bool (optional, 0 | 1 | boolean)
+    //   - created_at: timestamp or ISO string (optional, immutable)
+    //
+    // Collection: bids
+    // Document ID: {bidId} (UUID or string)
+    // Fields:
+    //   - id: string (required, 1-64 chars, immutable)
+    //   - auction_event_id: string (required, 1-64 chars)
+    //   - player_id: string (required, 1-64 chars)
+    //   - team_id: string (required, 1-64 chars)
+    //   - amount: number (required, > 0 and <= 10000)
+    //   - bidder_user_id: string (required, 1-64 chars)
+    //   - timestamp: timestamp or ISO string (optional)
+    //   - team_name: string (optional, max 100 chars)
+    //   - team_color: string (optional, max 20 chars)
+    //   - team_code: string (optional, max 10 chars)
+    //
+    // Collection: auction_results
+    // Document ID: {resultId} (UUID or string)
+    // Fields:
+    //   - id: string (required, 1-64 chars, immutable)
+    //   - auction_event_id: string (required, 1-64 chars)
+    //   - player_id: string (required, 1-64 chars)
+    //   - team_id: string (optional, nullable, 1-64 chars)
+    //   - final_price: number (required, 0-10000)
+    //   - status: string (required, 'sold' | 'unsold')
+    //   - confirmed_by: string (required, 1-100 chars)
+    //   - created_at: timestamp or ISO string (optional, immutable)
+    //
+    // Collection: audit_logs
+    // Document ID: {logId} (UUID or string)
+    // Fields:
+    //   - id: string (required, 1-64 chars, immutable)
+    //   - user_id: string (required, 1-64 chars)
+    //   - user_name: string (required, 1-100 chars)
+    //   - user_role: string (required, 1-50 chars)
+    //   - action: string (required, 1-100 chars)
+    //   - details: string (required, max 2000 chars)
+    //   - created_at: timestamp or ISO string (optional, immutable)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function areImmutableFieldsUnchanged(fields) {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(fields);
+    }
+
+    function isValidTimestampOrString(val) {
+      return val is timestamp ||
+             (val is string && val.size() >= 10 && val.size() <= 50);
+    }
+
+    // Role-based Access Control (RBAC) helpers
+    // Supports both Firebase Auth custom claims and Firestore users collection fallback
+
+    function hasRoleClaim(role) {
+      return isAuthenticated() && (
+        ('role' in request.auth.token && request.auth.token.role == role) ||
+        (role == 'super_admin' && 'admin' in request.auth.token && request.auth.token.admin == true)
+      );
+    }
+
+    function hasUserDoc() {
+      return isAuthenticated() && exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function getUserDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function hasDocRole(role) {
+      return hasUserDoc() && 'role' in getUserDoc() && getUserDoc().role == role;
+    }
+
+    function isSuperAdmin() {
+      return hasRoleClaim('super_admin') || hasDocRole('super_admin');
+    }
+
+    function isOrganiser() {
+      return hasRoleClaim('organiser_1') || hasRoleClaim('organiser_2') || hasRoleClaim('organiser') ||
+             (hasUserDoc() && 'role' in getUserDoc() && (getUserDoc().role in ['organiser_1', 'organiser_2', 'organiser']));
+    }
+
+    function isCaptain() {
+      return hasRoleClaim('captain') || hasDocRole('captain');
+    }
+
+    function isStaff() {
+      return isSuperAdmin() || isOrganiser() || isCaptain();
+    }
+
+    function tokenTeamId() {
+      return 'team_id' in request.auth.token ? request.auth.token.team_id :
+             ('teamId' in request.auth.token ? request.auth.token.teamId : null);
+    }
+
+    function isCaptainForTeam(teamId) {
+      return isCaptain() && (
+        tokenTeamId() == teamId ||
+        (hasUserDoc() && 'team_id' in getUserDoc() && getUserDoc().team_id == teamId)
+      );
+    }
+
+    // ===============================================================
+    // Domain Validators (Enforced on BOTH create and update)
+    // ===============================================================
+
+    function isValidUser(data) {
+      return hasRequiredFields(['id', 'username', 'name', 'role']) &&
+             hasOnlyAllowedFields(['id', 'username', 'name', 'role', 'team_id', 'created_at', 'password_hash']) &&
+             data.id is string && data.id.size() >= 1 && data.id.size() <= 64 &&
+             data.username is string && data.username.size() >= 2 && data.username.size() <= 50 &&
+             data.name is string && data.name.size() >= 2 && data.name.size() <= 100 &&
+             data.role in ['super_admin', 'organiser_1', 'organiser_2', 'captain', 'viewer'] &&
+             (!('team_id' in data) || data.team_id == null || (data.team_id is string && data.team_id.size() <= 64)) &&
+             (!('password_hash' in data) || (data.password_hash is string && data.password_hash.size() <= 256)) &&
+             (!('created_at' in data) || isValidTimestampOrString(data.created_at));
+    }
+
+    function isValidAuctionEvent(data) {
+      return hasRequiredFields(['id', 'name', 'year', 'status', 'initial_budget', 'current_bid', 'bid_timer', 'timer_duration', 'draw_category']) &&
+             hasOnlyAllowedFields(['id', 'name', 'year', 'status', 'initial_budget', 'current_player_id', 'current_bid', 'current_bid_team_id', 'bid_timer', 'timer_duration', 'draw_category', 'updated_at']) &&
+             data.id is string && data.id.size() >= 1 && data.id.size() <= 64 &&
+             data.name is string && data.name.size() >= 2 && data.name.size() <= 100 &&
+             data.year is number && data.year >= 2000 && data.year <= 2100 &&
+             data.status in ['not_started', 'drawing', 'drawn', 'bidding', 'paused', 'sold', 'unsold', 'completed'] &&
+             data.initial_budget is number && data.initial_budget >= 0 && data.initial_budget <= 10000 &&
+             (!('current_player_id' in data) || data.current_player_id == null || (data.current_player_id is string && data.current_player_id.size() <= 64)) &&
+             data.current_bid is number && data.current_bid >= 0 && data.current_bid <= 10000 &&
+             (!('current_bid_team_id' in data) || data.current_bid_team_id == null || (data.current_bid_team_id is string && data.current_bid_team_id.size() <= 64)) &&
+             data.bid_timer is number && data.bid_timer >= 0 && data.bid_timer <= 600 &&
+             data.timer_duration is number && data.timer_duration >= 5 && data.timer_duration <= 600 &&
+             data.draw_category is string && data.draw_category.size() <= 30 &&
+             (!('updated_at' in data) || isValidTimestampOrString(data.updated_at));
+    }
+
+    function isValidTeam(data) {
+      return hasRequiredFields(['id', 'name', 'code', 'primary_color', 'secondary_color', 'captain_name', 'initial_budget']) &&
+             hasOnlyAllowedFields(['id', 'name', 'code', 'logo_url', 'primary_color', 'secondary_color', 'captain_id', 'captain_name', 'initial_budget', 'retention_spent', 'auction_spent', 'remaining_budget', 'players_count', 'created_at']) &&
+             data.id is string && data.id.size() >= 1 && data.id.size() <= 64 &&
+             data.name is string && data.name.size() >= 2 && data.name.size() <= 100 &&
+             data.code is string && data.code.size() >= 2 && data.code.size() <= 10 &&
+             (!('logo_url' in data) || (data.logo_url is string && data.logo_url.size() <= 500)) &&
+             data.primary_color is string && data.primary_color.size() <= 20 &&
+             data.secondary_color is string && data.secondary_color.size() <= 20 &&
+             (!('captain_id' in data) || data.captain_id == null || (data.captain_id is string && data.captain_id.size() <= 64)) &&
+             data.captain_name is string && data.captain_name.size() >= 1 && data.captain_name.size() <= 100 &&
+             data.initial_budget is number && data.initial_budget >= 0 && data.initial_budget <= 10000 &&
+             (!('retention_spent' in data) || (data.retention_spent is number && data.retention_spent >= 0 && data.retention_spent <= 10000)) &&
+             (!('auction_spent' in data) || (data.auction_spent is number && data.auction_spent >= 0 && data.auction_spent <= 10000)) &&
+             (!('remaining_budget' in data) || (data.remaining_budget is number && data.remaining_budget >= 0 && data.remaining_budget <= 10000)) &&
+             (!('players_count' in data) || (data.players_count is number && data.players_count >= 0 && data.players_count <= 100)) &&
+             (!('created_at' in data) || isValidTimestampOrString(data.created_at));
+    }
+
+    function isValidPlayer(data) {
+      return hasRequiredFields(['id', 'player_number', 'name', 'gender', 'role', 'category', 'base_price', 'status']) &&
+             hasOnlyAllowedFields(['id', 'player_number', 'name', 'photo_url', 'gender', 'age', 'role', 'category', 'base_price', 'contact', 'is_active', 'status', 'sold_price', 'sold_to_team_id', 'created_at']) &&
+             data.id is string && data.id.size() >= 1 && data.id.size() <= 64 &&
+             data.player_number is string && data.player_number.size() >= 2 && data.player_number.size() <= 20 &&
+             data.name is string && data.name.size() >= 2 && data.name.size() <= 100 &&
+             (!('photo_url' in data) || (data.photo_url is string && data.photo_url.size() <= 500)) &&
+             data.gender in ['Male', 'Female'] &&
+             (!('age' in data) || data.age == null || (data.age is number && data.age >= 10 && data.age <= 80)) &&
+             data.role in ['Batsman', 'Bowler', 'All-rounder', 'Wicketkeeper'] &&
+             data.category is string && data.category.size() >= 1 && data.category.size() <= 50 &&
+             data.base_price is number && data.base_price >= 0 && data.base_price <= 1000 &&
+             (!('contact' in data) || data.contact == null || (data.contact is string && data.contact.size() <= 50)) &&
+             (!('is_active' in data) || data.is_active is bool || (data.is_active is number && data.is_active in [0, 1])) &&
+             data.status in ['available', 'retained', 'in_auction', 'sold', 'unsold'] &&
+             (!('sold_price' in data) || data.sold_price == null || (data.sold_price is number && data.sold_price >= 0 && data.sold_price <= 10000)) &&
+             (!('sold_to_team_id' in data) || data.sold_to_team_id == null || (data.sold_to_team_id is string && data.sold_to_team_id.size() <= 64)) &&
+             (!('created_at' in data) || isValidTimestampOrString(data.created_at));
+    }
+
+    function isValidTeamRetention(data) {
+      return hasRequiredFields(['id', 'team_id', 'player_id', 'points']) &&
+             hasOnlyAllowedFields(['id', 'team_id', 'player_id', 'points', 'created_at']) &&
+             data.id is string && data.id.size() >= 1 && data.id.size() <= 64 &&
+             data.team_id is string && data.team_id.size() >= 1 && data.team_id.size() <= 64 &&
+             data.player_id is string && data.player_id.size() >= 1 && data.player_id.size() <= 64 &&
+             data.points is number && data.points >= 0 && data.points <= 500 &&
+             (!('created_at' in data) || isValidTimestampOrString(data.created_at));
+    }
+
+    function isValidRandomDraw(data) {
+      return hasRequiredFields(['id', 'auction_event_id', 'player_id', 'draw_category', 'drawn_by_user_id']) &&
+             hasOnlyAllowedFields(['id', 'auction_event_id', 'player_id', 'draw_category', 'drawn_by_user_id', 'confirmed', 'created_at']) &&
+             data.id is string && data.id.size() >= 1 && data.id.size() <= 64 &&
+             data.auction_event_id is string && data.auction_event_id.size() >= 1 && data.auction_event_id.size() <= 64 &&
+             data.player_id is string && data.player_id.size() >= 1 && data.player_id.size() <= 64 &&
+             data.draw_category is string && data.draw_category.size() >= 1 && data.draw_category.size() <= 50 &&
+             data.drawn_by_user_id is string && data.drawn_by_user_id.size() >= 1 && data.drawn_by_user_id.size() <= 64 &&
+             (!('confirmed' in data) || data.confirmed is bool || (data.confirmed is number && data.confirmed in [0, 1])) &&
+             (!('created_at' in data) || isValidTimestampOrString(data.created_at));
+    }
+
+    function isValidBid(data) {
+      return hasRequiredFields(['id', 'auction_event_id', 'player_id', 'team_id', 'amount', 'bidder_user_id']) &&
+             hasOnlyAllowedFields(['id', 'auction_event_id', 'player_id', 'team_id', 'amount', 'bidder_user_id', 'timestamp', 'team_name', 'team_color', 'team_code']) &&
+             data.id is string && data.id.size() >= 1 && data.id.size() <= 64 &&
+             data.auction_event_id is string && data.auction_event_id.size() >= 1 && data.auction_event_id.size() <= 64 &&
+             data.player_id is string && data.player_id.size() >= 1 && data.player_id.size() <= 64 &&
+             data.team_id is string && data.team_id.size() >= 1 && data.team_id.size() <= 64 &&
+             data.amount is number && data.amount > 0 && data.amount <= 10000 &&
+             data.bidder_user_id is string && data.bidder_user_id.size() >= 1 && data.bidder_user_id.size() <= 64 &&
+             (!('timestamp' in data) || isValidTimestampOrString(data.timestamp)) &&
+             (!('team_name' in data) || (data.team_name is string && data.team_name.size() <= 100)) &&
+             (!('team_color' in data) || (data.team_color is string && data.team_color.size() <= 20)) &&
+             (!('team_code' in data) || (data.team_code is string && data.team_code.size() <= 10));
+    }
+
+    function isValidAuctionResult(data) {
+      return hasRequiredFields(['id', 'auction_event_id', 'player_id', 'final_price', 'status', 'confirmed_by']) &&
+             hasOnlyAllowedFields(['id', 'auction_event_id', 'player_id', 'team_id', 'final_price', 'status', 'confirmed_by', 'created_at']) &&
+             data.id is string && data.id.size() >= 1 && data.id.size() <= 64 &&
+             data.auction_event_id is string && data.auction_event_id.size() >= 1 && data.auction_event_id.size() <= 64 &&
+             data.player_id is string && data.player_id.size() >= 1 && data.player_id.size() <= 64 &&
+             (!('team_id' in data) || data.team_id == null || (data.team_id is string && data.team_id.size() <= 64)) &&
+             data.final_price is number && data.final_price >= 0 && data.final_price <= 10000 &&
+             data.status in ['sold', 'unsold'] &&
+             data.confirmed_by is string && data.confirmed_by.size() >= 1 && data.confirmed_by.size() <= 100 &&
+             (!('created_at' in data) || isValidTimestampOrString(data.created_at));
+    }
+
+    function isValidAuditLog(data) {
+      return hasRequiredFields(['id', 'user_id', 'user_name', 'user_role', 'action', 'details']) &&
+             hasOnlyAllowedFields(['id', 'user_id', 'user_name', 'user_role', 'action', 'details', 'created_at']) &&
+             data.id is string && data.id.size() >= 1 && data.id.size() <= 64 &&
+             data.user_id is string && data.user_id.size() >= 1 && data.user_id.size() <= 64 &&
+             data.user_name is string && data.user_name.size() >= 1 && data.user_name.size() <= 100 &&
+             data.user_role is string && data.user_role.size() >= 1 && data.user_role.size() <= 50 &&
+             data.action is string && data.action.size() >= 1 && data.action.size() <= 100 &&
+             data.details is string && data.details.size() <= 2000 &&
+             (!('created_at' in data) || isValidTimestampOrString(data.created_at));
+    }
+
+    // ===============================================================
+    // Collection Rules
+    // ===============================================================
+
+    // Root default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // 1. users
+    // Super Admin has full control; users can get their own user doc; no public listing or enumeration
+    match /users/{userId} {
+      allow get: if isSuperAdmin() || isOwner(userId);
+      allow list: if isSuperAdmin();
+      allow create, delete: if isSuperAdmin() && isValidUser(request.resource.data);
+      allow update: if isSuperAdmin() && isValidUser(request.resource.data) && areImmutableFieldsUnchanged(['id', 'created_at']);
+    }
+
+    // 2. auction_events
+    // Public viewers can read; Organisers and Super Admin have full control
+    match /auction_events/{eventId} {
+      allow read: if true;
+      allow create, delete: if (isSuperAdmin() || isOrganiser()) && isValidAuctionEvent(request.resource.data);
+      allow update: if (isSuperAdmin() || isOrganiser()) && isValidAuctionEvent(request.resource.data) && areImmutableFieldsUnchanged(['id']);
+    }
+
+    // 3. teams
+    // Public viewers can read; Super Admin has full control
+    match /teams/{teamId} {
+      allow read: if true;
+      allow create, delete: if isSuperAdmin() && isValidTeam(request.resource.data);
+      allow update: if isSuperAdmin() && isValidTeam(request.resource.data) && areImmutableFieldsUnchanged(['id', 'created_at']);
+    }
+
+    // 4. players
+    // Public viewers can read; Super Admin has full control;
+    // Organisers can update auction status fields during live auction
+    match /players/{playerId} {
+      allow read: if true;
+      allow create, delete: if isSuperAdmin() && isValidPlayer(request.resource.data);
+      allow update: if isValidPlayer(request.resource.data) && (
+        (isSuperAdmin() && areImmutableFieldsUnchanged(['id', 'created_at'])) ||
+        (isOrganiser() && areImmutableFieldsUnchanged(['id', 'player_number', 'name', 'photo_url', 'gender', 'age', 'role', 'category', 'base_price', 'created_at']))
+      );
+    }
+
+    // 5. team_retentions
+    // Public viewers can read; Super Admin has full control
+    match /team_retentions/{retentionId} {
+      allow read: if true;
+      allow create, delete: if isSuperAdmin() && isValidTeamRetention(request.resource.data);
+      allow update: if isSuperAdmin() && isValidTeamRetention(request.resource.data) && areImmutableFieldsUnchanged(['id', 'created_at']);
+    }
+
+    // 6. random_draws
+    // Organisers and Super Admin have full control
+    match /random_draws/{drawId} {
+      allow read: if isSuperAdmin() || isOrganiser();
+      allow create, delete: if (isSuperAdmin() || isOrganiser()) && isValidRandomDraw(request.resource.data);
+      allow update: if (isSuperAdmin() || isOrganiser()) && isValidRandomDraw(request.resource.data) && areImmutableFieldsUnchanged(['id', 'auction_event_id', 'player_id', 'created_at']);
+    }
+
+    // 7. bids
+    // Public viewers can read; Captains can create bids for assigned team; Organisers/Super Admin can also submit bids;
+    // Bids are strictly immutable once created (historical ledger); Super Admin can delete for emergency reset
+    match /bids/{bidId} {
+      allow read: if true;
+      allow create: if isValidBid(request.resource.data) && (
+        isSuperAdmin() || isOrganiser() ||
+        (isCaptainForTeam(request.resource.data.team_id) && request.resource.data.bidder_user_id == request.auth.uid)
+      );
+      allow update: if false;
+      allow delete: if isSuperAdmin();
+    }
+
+    // 8. auction_results
+    // Public viewers can read; Organisers and Super Admin have full control
+    match /auction_results/{resultId} {
+      allow read: if true;
+      allow create, delete: if (isSuperAdmin() || isOrganiser()) && isValidAuctionResult(request.resource.data);
+      allow update: if (isSuperAdmin() || isOrganiser()) && isValidAuctionResult(request.resource.data) && areImmutableFieldsUnchanged(['id', 'auction_event_id', 'player_id', 'created_at']);
+    }
+
+    // 9. audit_logs
+    // Append-only by authenticated staff; NEVER editable or deletable; Super Admin can view
+    match /audit_logs/{logId} {
+      allow read: if isSuperAdmin();
+      allow create: if isStaff() && isValidAuditLog(request.resource.data) && request.resource.data.user_id == request.auth.uid;
+      allow update: if false;
+      allow delete: if false;
+    }
+  }
+}
