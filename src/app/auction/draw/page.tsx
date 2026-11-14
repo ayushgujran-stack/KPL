@@ -89,30 +89,30 @@ export default function RandomDrawPage() {
   };
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-8 relative">
+    <div className="max-w-5xl mx-auto px-4 py-8 relative bg-[#101827] min-h-[calc(100vh-4rem)]">
       <div className="text-center mb-8">
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/10 border border-purple-500/30 text-purple-300 text-xs font-bold uppercase tracking-wider mb-2">
-          <Sparkles className="w-3.5 h-3.5 text-purple-400" />
+        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#F5B942]/15 border border-[#F5B942]/35 text-[#F5B942] text-xs font-black uppercase tracking-wider mb-2">
+          <Sparkles className="w-3.5 h-3.5 fill-current" />
           Automated Fair Random Selection
         </div>
         <h1 className="text-3xl sm:text-4xl font-black text-white uppercase tracking-tight">
-          Random Player <span className="text-purple-400">Lottery Draw</span>
+          Random Player <span className="text-[#F5B942]">Lottery Draw</span>
         </h1>
-        <p className="text-xs sm:text-sm text-slate-400 mt-1 max-w-xl mx-auto">
+        <p className="text-xs sm:text-sm text-[#94A3B8] mt-1 max-w-xl mx-auto font-medium">
           Cryptographically random selection of eligible cricket players. Retained and sold players are strictly excluded.
         </p>
       </div>
 
       {/* Podium Active Warning Banner */}
       {isAuctionLive && (
-        <div className="mb-6 p-5 rounded-2xl bg-amber-500/15 border border-amber-500/30 backdrop-blur">
+        <div className="mb-6 p-5 rounded-2xl bg-[#202F45] border-2 border-[#F5B942]/40 shadow-xl">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-amber-500/20 flex items-center justify-center text-amber-400 shrink-0">
+              <div className="w-10 h-10 rounded-xl bg-[#F5B942]/20 flex items-center justify-center text-[#F5B942] shrink-0">
                 <Radio className="w-5 h-5 animate-pulse" />
               </div>
               <div>
-                <div className="text-xs uppercase font-extrabold text-amber-400 tracking-wider">
+                <div className="text-xs uppercase font-black text-[#F5B942] tracking-wider">
                   Auction Currently Active on Podium ({currentStatus})
                 </div>
                 <div className="text-white font-bold text-sm mt-0.5">
@@ -122,7 +122,7 @@ export default function RandomDrawPage() {
             </div>
             <Link
               href="/auction/live"
-              className="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs uppercase tracking-wider transition shrink-0 flex items-center gap-1.5 shadow-lg shadow-amber-500/20"
+              className="px-6 py-2.5 rounded-xl bg-[#F5B942] hover:bg-[#FFD66B] text-[#101827] font-black text-xs uppercase tracking-wider transition shrink-0 flex items-center gap-1.5 shadow-lg shadow-[#F5B942]/20"
             >
               Go to Live Podium →
             </Link>
@@ -131,11 +131,11 @@ export default function RandomDrawPage() {
       )}
 
       {!isOrganiser && (
-        <div className="mb-6 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs flex items-center justify-between">
+        <div className="mb-6 p-4 rounded-2xl bg-[#202F45] border border-[#334155] text-[#CBD5E1] text-xs flex items-center justify-between">
           <span>You are viewing in Read-Only mode. Sign in as Organiser or Admin to control the lottery.</span>
           <button
             onClick={() => router.push('/login')}
-            className="px-3 py-1 bg-amber-400 text-slate-950 font-bold rounded-lg uppercase text-[10px]"
+            className="px-3.5 py-1.5 bg-[#F5B942] text-[#101827] font-black rounded-lg uppercase text-[10px] hover:bg-[#FFD66B] transition"
           >
             Login as Organiser
           </button>
@@ -143,21 +143,21 @@ export default function RandomDrawPage() {
       )}
 
       {error && (
-        <div className="mb-6 p-4 rounded-2xl bg-rose-500/20 border border-rose-500/40 text-rose-300 text-xs flex items-center gap-2">
+        <div className="mb-6 p-4 rounded-2xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2 font-semibold">
           <AlertTriangle className="w-4 h-4 shrink-0 text-rose-400" />
           <span>{error}</span>
         </div>
       )}
 
       {/* Main Draw Screen Stage */}
-      <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 sm:p-10 backdrop-blur shadow-2xl relative overflow-hidden">
+      <div className="bg-[#202F45] border border-[#334155] rounded-3xl p-6 sm:p-10 shadow-2xl relative overflow-hidden">
         {/* Glow circles */}
-        <div className="absolute -top-24 -left-24 w-72 h-72 bg-purple-500/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-24 -right-24 w-72 h-72 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -top-24 -left-24 w-72 h-72 bg-[#F5B942]/5 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-24 -right-24 w-72 h-72 bg-blue-500/5 rounded-full blur-3xl pointer-events-none" />
 
         {/* Category Selector Bar */}
         <div className="flex flex-wrap items-center justify-center gap-3 mb-8">
-          <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Draw Pool:</span>
+          <span className="text-xs font-bold text-[#94A3B8] uppercase tracking-wider">Draw Pool:</span>
           {(['all', 'male', 'female'] as const).map((cat) => (
             <button
               key={cat}
@@ -165,8 +165,8 @@ export default function RandomDrawPage() {
               onClick={() => setCategory(cat)}
               className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition ${
                 category === cat
-                  ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/30'
-                  : 'bg-slate-800/80 text-slate-400 hover:text-white hover:bg-slate-700 disabled:opacity-50'
+                  ? 'bg-[#F5B942] text-[#101827] font-black shadow-lg shadow-[#F5B942]/20'
+                  : 'bg-[#182438] text-[#CBD5E1] hover:text-white hover:bg-[#263852] border border-[#334155] disabled:opacity-50'
               }`}
             >
               {cat === 'all' ? 'All Players' : cat === 'male' ? 'Male Only' : 'Female Only'}
@@ -176,10 +176,10 @@ export default function RandomDrawPage() {
 
         {/* Center Animated Roulette Spotlight */}
         <div className="max-w-md mx-auto text-center">
-          <div className="relative mx-auto w-56 h-56 sm:w-64 sm:h-64 rounded-3xl overflow-hidden border-4 border-purple-500/30 shadow-2xl bg-slate-950 mb-6 group">
+          <div className="relative mx-auto w-56 h-56 sm:w-64 sm:h-64 rounded-3xl overflow-hidden border-4 border-[#F5B942]/40 shadow-2xl bg-[#182438] mb-6 group">
             {/* Spinning indicator ring */}
             {isDrawing && (
-              <div className="absolute inset-0 border-4 border-amber-400 border-t-transparent rounded-3xl animate-spin z-20 pointer-events-none" />
+              <div className="absolute inset-0 border-4 border-[#F5B942] border-t-transparent rounded-3xl animate-spin z-20 pointer-events-none" />
             )}
 
             <img
@@ -190,10 +190,10 @@ export default function RandomDrawPage() {
               }`}
             />
 
-            <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/20 to-transparent" />
+            <div className="absolute inset-0 bg-gradient-to-t from-[#101827] via-[#101827]/20 to-transparent" />
 
             {/* Corner ID Badge */}
-            <div className="absolute top-3 left-3 px-2 py-0.5 rounded bg-slate-900/80 border border-slate-700 text-[10px] font-mono font-bold text-amber-400">
+            <div className="absolute top-3 left-3 px-2.5 py-0.5 rounded-lg bg-[#101827]/90 border border-[#334155] text-[10px] font-mono font-bold text-[#F5B942]">
               {activeDrawnPlayer ? `#${activeDrawnPlayer.player_number}` : 'POOL'}
             </div>
           </div>
@@ -205,16 +205,16 @@ export default function RandomDrawPage() {
             </h2>
             {activeDrawnPlayer && (
               <div className="flex flex-wrap items-center justify-center gap-2 mt-2">
-                <span className="px-2.5 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30 text-xs font-semibold">
+                <span className="px-3 py-1 rounded-full bg-[#3B82F6]/20 text-[#60a5fa] border border-[#3B82F6]/40 text-xs font-bold">
                   {activeDrawnPlayer.role}
                 </span>
-                <span className="px-2.5 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30 text-xs font-semibold">
+                <span className="px-3 py-1 rounded-full bg-[#182438] text-[#CBD5E1] border border-[#334155] text-xs font-bold">
                   {activeDrawnPlayer.gender}
                 </span>
-                <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-bold">
+                <span className="px-3 py-1 rounded-full bg-[#F5B942]/15 text-[#F5B942] border border-[#F5B942]/40 text-xs font-black">
                   {activeDrawnPlayer.category}
                 </span>
-                <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-black">
+                <span className="px-3 py-1 rounded-full bg-[#16A34A]/20 text-[#22c55e] border border-[#16A34A]/40 text-xs font-black">
                   Base: {activeDrawnPlayer.base_price} Pts
                 </span>
               </div>
@@ -227,7 +227,7 @@ export default function RandomDrawPage() {
               <button
                 onClick={handleStartDraw}
                 disabled={isDrawing || !isOrganiser || isAuctionLive}
-                className="w-full sm:w-auto px-8 py-3.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-black text-sm uppercase tracking-wider shadow-xl shadow-purple-500/25 flex items-center justify-center gap-2 transition disabled:opacity-50"
+                className="w-full sm:w-auto px-8 py-3.5 rounded-xl bg-[#F5B942] hover:bg-[#FFD66B] text-[#101827] font-black text-sm uppercase tracking-wider shadow-xl shadow-[#F5B942]/20 flex items-center justify-center gap-2 transition disabled:bg-[#475569] disabled:text-[#CBD5E1] disabled:cursor-not-allowed"
               >
                 <Shuffle className={`w-4 h-4 ${isDrawing ? 'animate-spin' : ''}`} />
                 {isDrawing ? 'Selecting Player...' : isAuctionLive ? 'Auction Active on Podium' : 'Start Random Draw'}
@@ -237,7 +237,7 @@ export default function RandomDrawPage() {
                 <button
                   onClick={handleStartDraw}
                   disabled={isDrawing || !isOrganiser || isAuctionLive}
-                  className="w-full sm:w-auto px-5 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs uppercase tracking-wider border border-slate-700 transition disabled:opacity-50"
+                  className="w-full sm:w-auto px-5 py-3 rounded-xl bg-[#334155] hover:bg-[#475569] text-white font-bold text-xs uppercase tracking-wider border border-[#475569] transition disabled:opacity-50"
                 >
                   Draw Another
                 </button>
@@ -245,7 +245,7 @@ export default function RandomDrawPage() {
                 <button
                   onClick={handleConfirmAndProceed}
                   disabled={!isOrganiser || confirmed || isAuctionLive}
-                  className="w-full sm:w-auto px-8 py-3.5 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-slate-950 font-black text-sm uppercase tracking-wider shadow-xl shadow-emerald-500/25 flex items-center justify-center gap-2 transition disabled:opacity-50"
+                  className="w-full sm:w-auto px-8 py-3.5 rounded-xl bg-[#16A34A] hover:bg-[#22c55e] text-white font-black text-sm uppercase tracking-wider shadow-xl shadow-emerald-600/25 flex items-center justify-center gap-2 transition disabled:opacity-50"
                 >
                   <CheckCircle2 className="w-5 h-5" />
                   Confirm & Move to Live Auction

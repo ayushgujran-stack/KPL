@@ -16,7 +16,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="dark">
-      <body className="min-h-screen bg-[#070b14] text-slate-100 antialiased selection:bg-amber-500 selection:text-slate-950">
+      <body className="min-h-screen bg-[#101827] text-white antialiased selection:bg-[#F5B942] selection:text-[#101827]">
         <AuthProvider>
           <AuctionProvider>
             <div className="flex flex-col min-h-screen">

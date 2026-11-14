@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { Player, Gender, PlayingRole } from '@/types';
 import { useAuction } from '@/context/AuctionContext';
-import { Users, Plus, Upload, Download, Search, Filter, Trash2, Edit2, X, Check, FileSpreadsheet } from 'lucide-react';
+import { Plus, Upload, Download, Search, Trash2, Edit2, X } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 export default function AdminPlayersPage() {
@@ -101,8 +101,8 @@ export default function AdminPlayersPage() {
         if (!res.ok) throw new Error(data.error);
       }
 
-      setShowAddModal(false);
       setEditingPlayer(null);
+      setShowAddModal(false);
       await fetchPlayers();
       await refreshState();
     } catch (err: any) {
@@ -110,10 +110,10 @@ export default function AdminPlayersPage() {
     }
   };
 
-  const handleDeletePlayer = async (id: string) => {
+  const handleDeletePlayer = async (playerId: string) => {
     if (!confirm('Are you sure you want to delete this player?')) return;
     try {
-      const res = await fetch(`/api/players/${id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/players/${playerId}`, { method: 'DELETE' });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       await fetchPlayers();
@@ -123,93 +123,77 @@ export default function AdminPlayersPage() {
     }
   };
 
-  // Excel File Import Handler
-  const handleExcelImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleExportExcel = () => {
+    const rows = players.map((p) => ({
+      'Player ID': p.player_number,
+      'Full Name': p.name,
+      'Gender': p.gender,
+      'Age': p.age || '',
+      'Playing Role': p.role,
+      'Category': p.category,
+      'Base Price (Pts)': p.base_price,
+      'Status': p.status.toUpperCase(),
+      'Sold Price': p.sold_price || '',
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(rows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Players');
+    XLSX.writeFile(workbook, `KPL_2026_Players_Master.xlsx`);
+  };
+
+  const handleExcelImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = async (evt) => {
-      try {
+    try {
+      const reader = new FileReader();
+      reader.onload = async (evt) => {
         const bstr = evt.target?.result;
         const wb = XLSX.read(bstr, { type: 'binary' });
-        const wsName = wb.SheetNames[0];
-        const ws = wb.Sheets[wsName];
-        const rawData: any[] = XLSX.utils.sheet_to_json(ws);
+        const wsname = wb.SheetNames[0];
+        const ws = wb.Sheets[wsname];
+        const data = XLSX.utils.sheet_to_json(ws);
 
-        if (rawData.length === 0) {
-          alert('Excel file is empty');
+        if (!data || data.length === 0) {
+          alert('Excel sheet is empty');
           return;
         }
-
-        const mappedPlayers = rawData.map((row, idx) => ({
-          player_number: row.player_number || row['Player ID'] || `PLY-${100 + idx}`,
-          name: row.name || row['Name'] || row['Player Name'],
-          gender: row.gender || row['Gender'] || 'Male',
-          age: row.age || row['Age'] || null,
-          role: row.role || row['Role'] || row['Playing Role'] || 'All-rounder',
-          category: row.category || row['Category'] || 'Category A',
-          base_price: row.base_price || row['Base Price'] || 10,
-          photo_url: row.photo_url || row['Photo URL'] || 'https://images.unsplash.com/photo-1540747913346-19e32dc3e97e?w=400&h=400&fit=crop&q=80',
-          contact: row.contact || row['Contact'] || null,
-        }));
 
         const res = await fetch('/api/players', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(mappedPlayers),
+          body: JSON.stringify({ bulk: data }),
         });
-
-        const resData = await res.json();
-        if (res.ok) {
-          alert(`Successfully imported ${resData.count} players!`);
+        const json = await res.json();
+        if (!res.ok) {
+          alert(`Import error: ${json.error}`);
+        } else {
+          alert(`Successfully imported ${json.importedCount || data.length} cricketers!`);
           await fetchPlayers();
           await refreshState();
-        } else {
-          alert(resData.error || 'Failed to import');
         }
-      } catch (err: any) {
-        alert('Error parsing Excel: ' + err.message);
-      }
-    };
-    reader.readAsBinaryString(file);
-  };
-
-  // Excel Export Handler
-  const handleExportExcel = () => {
-    const exportData = players.map((p) => ({
-      'Player ID': p.player_number,
-      'Name': p.name,
-      'Gender': p.gender,
-      'Age': p.age,
-      'Role': p.role,
-      'Category': p.category,
-      'Base Price': p.base_price,
-      'Status': p.status.toUpperCase(),
-      'Sold Price': p.sold_price || '',
-      'Sold Team': (p as any).sold_team_name || '',
-    }));
-
-    const ws = XLSX.utils.json_to_sheet(exportData);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Players');
-    XLSX.writeFile(wb, `KPL_Player_Master_${Date.now()}.xlsx`);
+      };
+      reader.readAsBinaryString(file);
+    } catch (err: any) {
+      alert(`Failed to parse Excel file: ${err.message}`);
+    }
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 bg-[#101827] min-h-[calc(100vh-4rem)]">
       {/* Top Header & Actions */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
         <div>
-          <div className="text-xs uppercase font-extrabold text-amber-400 tracking-wider">Master Registry</div>
+          <div className="text-xs uppercase font-black text-[#F5B942] tracking-wider">Master Registry</div>
           <h1 className="text-2xl sm:text-3xl font-black text-white">Player Master</h1>
-          <p className="text-xs text-slate-400 mt-1">Manage player profiles, categories, base prices, and bulk Excel import.</p>
+          <p className="text-xs text-[#94A3B8] mt-1 font-medium">Manage player profiles, categories, base prices, and bulk Excel import.</p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2.5">
           {/* Excel Import */}
-          <label className="cursor-pointer px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold border border-slate-700 transition flex items-center gap-1.5">
-            <Upload className="w-3.5 h-3.5 text-purple-400" />
+          <label className="cursor-pointer px-4 py-2.5 rounded-xl bg-[#334155] hover:bg-[#475569] text-white text-xs font-bold border border-[#475569] transition flex items-center gap-1.5 shadow-sm">
+            <Upload className="w-3.5 h-3.5 text-[#a855f7]" />
             Excel Import
             <input
               type="file"
@@ -222,9 +206,9 @@ export default function AdminPlayersPage() {
           {/* Excel Export */}
           <button
             onClick={handleExportExcel}
-            className="px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold border border-slate-700 transition flex items-center gap-1.5"
+            className="px-4 py-2.5 rounded-xl bg-[#334155] hover:bg-[#475569] text-white text-xs font-bold border border-[#475569] transition flex items-center gap-1.5 shadow-sm"
           >
-            <Download className="w-3.5 h-3.5 text-emerald-400" />
+            <Download className="w-3.5 h-3.5 text-[#22c55e]" />
             Export Excel
           </button>
 
@@ -243,7 +227,7 @@ export default function AdminPlayersPage() {
               setContact('');
               setShowAddModal(true);
             }}
-            className="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs uppercase tracking-wider transition flex items-center gap-1.5 shadow-md shadow-amber-500/20"
+            className="px-5 py-2.5 rounded-xl bg-[#F5B942] hover:bg-[#FFD66B] text-[#101827] font-black text-xs uppercase tracking-wider transition flex items-center gap-1.5 shadow-lg shadow-[#F5B942]/20"
           >
             <Plus className="w-4 h-4" />
             Add Player
@@ -252,59 +236,59 @@ export default function AdminPlayersPage() {
       </div>
 
       {/* Filters Bar */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-6 p-4 rounded-2xl bg-slate-900/80 border border-slate-800 backdrop-blur">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-6 p-4 rounded-2xl bg-[#202F45] border border-[#334155] shadow-lg">
         <div className="relative">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <Search className="w-4 h-4 text-[#94A3B8] absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search by name or ID..."
-            className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400"
+            className="w-full bg-[#182438] border border-[#334155] rounded-xl pl-9 pr-3.5 py-2 text-xs text-white placeholder-[#94A3B8] focus:outline-none focus:border-[#F5B942]"
           />
         </div>
 
         <select
           value={genderFilter}
           onChange={(e) => setGenderFilter(e.target.value)}
-          className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-300 focus:outline-none focus:border-amber-400"
+          className="bg-[#182438] border border-[#334155] rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#F5B942]"
         >
-          <option value="">All Genders</option>
-          <option value="Male">Male</option>
-          <option value="Female">Female</option>
+          <option value="" className="bg-[#182438] text-white">All Genders</option>
+          <option value="Male" className="bg-[#182438] text-white">Male</option>
+          <option value="Female" className="bg-[#182438] text-white">Female</option>
         </select>
 
         <select
           value={roleFilter}
           onChange={(e) => setRoleFilter(e.target.value)}
-          className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-300 focus:outline-none focus:border-amber-400"
+          className="bg-[#182438] border border-[#334155] rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#F5B942]"
         >
-          <option value="">All Playing Roles</option>
-          <option value="Batsman">Batsman</option>
-          <option value="Bowler">Bowler</option>
-          <option value="All-rounder">All-rounder</option>
-          <option value="Wicketkeeper">Wicketkeeper</option>
+          <option value="" className="bg-[#182438] text-white">All Playing Roles</option>
+          <option value="Batsman" className="bg-[#182438] text-white">Batsman</option>
+          <option value="Bowler" className="bg-[#182438] text-white">Bowler</option>
+          <option value="All-rounder" className="bg-[#182438] text-white">All-rounder</option>
+          <option value="Wicketkeeper" className="bg-[#182438] text-white">Wicketkeeper</option>
         </select>
 
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
-          className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-300 focus:outline-none focus:border-amber-400"
+          className="bg-[#182438] border border-[#334155] rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#F5B942]"
         >
-          <option value="">All Statuses</option>
-          <option value="available">Available in Pool</option>
-          <option value="retained">Retained</option>
-          <option value="sold">Sold</option>
-          <option value="unsold">Unsold</option>
+          <option value="" className="bg-[#182438] text-white">All Statuses</option>
+          <option value="available" className="bg-[#182438] text-white">Available in Pool</option>
+          <option value="retained" className="bg-[#182438] text-white">Retained</option>
+          <option value="sold" className="bg-[#182438] text-white">Sold</option>
+          <option value="unsold" className="bg-[#182438] text-white">Unsold</option>
         </select>
       </div>
 
       {/* Players Table */}
-      <div className="bg-slate-900/90 border border-slate-800 rounded-3xl overflow-hidden backdrop-blur shadow-2xl">
+      <div className="bg-[#202F45] border border-[#334155] rounded-3xl overflow-hidden shadow-2xl">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="border-b border-slate-800 text-[11px] font-bold text-slate-400 uppercase tracking-wider bg-slate-950/60">
+              <tr className="border-b border-[#334155] text-[11px] font-black text-[#94A3B8] uppercase tracking-wider bg-[#182438]">
                 <th className="py-3 px-4">Player</th>
                 <th className="py-3 px-4">Gender</th>
                 <th className="py-3 px-4">Role</th>
@@ -314,65 +298,65 @@ export default function AdminPlayersPage() {
                 <th className="py-3 px-4 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800/60 text-xs">
+            <tbody className="divide-y divide-[#334155]/60 text-xs">
               {players.length > 0 ? (
                 players.map((p) => (
-                  <tr key={p.id} className="hover:bg-slate-800/40 transition">
-                    <td className="py-3 px-4">
+                  <tr key={p.id} className="hover:bg-[#182438]/50 transition">
+                    <td className="py-3.5 px-4">
                       <div className="flex items-center gap-3">
                         <img
                           src={p.photo_url}
                           alt={p.name}
-                          className="w-10 h-10 rounded-xl object-cover border border-slate-700 shrink-0"
+                          className="w-10 h-10 rounded-xl object-cover border border-[#334155] shrink-0"
                         />
                         <div>
                           <div className="font-bold text-white text-sm">{p.name}</div>
-                          <div className="text-[10px] text-slate-400 font-mono">#{p.player_number}</div>
+                          <div className="text-[10px] text-[#94A3B8] font-mono">#{p.player_number}</div>
                         </div>
                       </div>
                     </td>
-                    <td className="py-3 px-4 text-slate-300">{p.gender}</td>
-                    <td className="py-3 px-4">
-                      <span className="px-2.5 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30 font-semibold text-[11px]">
+                    <td className="py-3.5 px-4 text-[#CBD5E1] font-semibold">{p.gender}</td>
+                    <td className="py-3.5 px-4">
+                      <span className="px-2.5 py-0.5 rounded-full bg-[#3B82F6]/20 text-[#60a5fa] border border-[#3B82F6]/40 font-bold text-[11px]">
                         {p.role}
                       </span>
                     </td>
-                    <td className="py-3 px-4">
-                      <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[11px] font-bold">
+                    <td className="py-3.5 px-4">
+                      <span className="px-2.5 py-0.5 rounded-full bg-[#F5B942]/15 text-[#F5B942] border border-[#F5B942]/40 text-[11px] font-black">
                         {p.category}
                       </span>
                     </td>
-                    <td className="py-3 px-4 text-center font-black font-mono text-emerald-400 text-sm">
+                    <td className="py-3.5 px-4 text-center font-black font-mono text-[#22c55e] text-sm">
                       {p.base_price} pts
                     </td>
-                    <td className="py-3 px-4 text-center">
+                    <td className="py-3.5 px-4 text-center">
                       <span
-                        className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                        className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase ${
                           p.status === 'sold'
-                            ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
+                            ? 'bg-[#16A34A]/15 text-[#22c55e] border border-[#16A34A]/40'
                             : p.status === 'retained'
-                            ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                            ? 'bg-[#F5B942]/15 text-[#F5B942] border border-[#F5B942]/40'
                             : p.status === 'unsold'
-                            ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
-                            : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                            ? 'bg-rose-500/15 text-[#ef4444] border border-rose-500/40'
+                            : 'bg-[#3B82F6]/15 text-[#60a5fa] border border-[#3B82F6]/40'
                         }`}
                       >
                         {p.status}
                       </span>
                     </td>
-                    <td className="py-3 px-4 text-right">
+                    <td className="py-3.5 px-4 text-right">
                       <div className="flex items-center justify-end gap-1.5">
                         <button
                           onClick={() => handleOpenEdit(p)}
                           title="Edit Player"
-                          className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition"
+                          className="p-2 rounded-xl bg-[#182438] hover:bg-[#263852] text-[#CBD5E1] hover:text-white transition border border-[#334155]"
                         >
                           <Edit2 className="w-3.5 h-3.5" />
                         </button>
                         <button
                           onClick={() => handleDeletePlayer(p.id)}
                           title="Delete Player"
-                          className="p-1.5 rounded-lg bg-slate-800 hover:bg-rose-900/50 text-slate-400 hover:text-rose-400 transition"
+                          className="p-2 rounded-xl bg-[#182438] hover:bg-rose-950/50 text-[#94A3B8] hover:text-rose-400 transition border border-[#334155]"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -382,7 +366,7 @@ export default function AdminPlayersPage() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={7} className="py-12 text-center text-slate-400 italic">
+                  <td colSpan={7} className="py-12 text-center text-[#94A3B8] italic">
                     {loading ? 'Loading cricketers...' : 'No players found matching current filters.'}
                   </td>
                 </tr>
@@ -394,11 +378,11 @@ export default function AdminPlayersPage() {
 
       {/* Add / Edit Player Modal */}
       {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm overflow-y-auto">
-          <div className="max-w-lg w-full bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl relative my-8">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm overflow-y-auto">
+          <div className="max-w-lg w-full bg-[#202F45] border border-[#334155] rounded-3xl p-6 sm:p-8 shadow-2xl relative my-8">
             <button
               onClick={() => setShowAddModal(false)}
-              className="absolute top-5 right-5 text-slate-400 hover:text-white"
+              className="absolute top-5 right-5 text-[#94A3B8] hover:text-white"
             >
               <X className="w-5 h-5" />
             </button>
@@ -408,7 +392,7 @@ export default function AdminPlayersPage() {
             </h2>
 
             {error && (
-              <div className="mb-4 p-3 rounded-xl bg-rose-500/20 border border-rose-500/40 text-rose-300 text-xs">
+              <div className="mb-4 p-3 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs font-semibold">
                 {error}
               </div>
             )}
@@ -416,100 +400,100 @@ export default function AdminPlayersPage() {
             <form onSubmit={handleSavePlayer} className="space-y-4 text-xs">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-300 font-bold uppercase mb-1">Player Name</label>
+                  <label className="block text-[#CBD5E1] font-bold uppercase mb-1">Player Name</label>
                   <input
                     type="text"
                     required
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     placeholder="e.g. Virat Kohli"
-                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white"
+                    className="w-full bg-[#182438] border border-[#334155] rounded-xl px-3.5 py-2.5 text-white placeholder-[#94A3B8] focus:outline-none focus:border-[#F5B942]"
                   />
                 </div>
                 <div>
-                  <label className="block text-slate-300 font-bold uppercase mb-1">Player ID / Number</label>
+                  <label className="block text-[#CBD5E1] font-bold uppercase mb-1">Player ID / Number</label>
                   <input
                     type="text"
                     required
                     value={playerNumber}
                     onChange={(e) => setPlayerNumber(e.target.value)}
                     placeholder="PLY-099"
-                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono"
+                    className="w-full bg-[#182438] border border-[#334155] rounded-xl px-3.5 py-2.5 text-white font-mono placeholder-[#94A3B8] focus:outline-none focus:border-[#F5B942]"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-slate-300 font-bold uppercase mb-1">Photo URL</label>
+                <label className="block text-[#CBD5E1] font-bold uppercase mb-1">Photo URL</label>
                 <input
                   type="text"
                   value={photoUrl}
                   onChange={(e) => setPhotoUrl(e.target.value)}
                   placeholder="https://..."
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white"
+                  className="w-full bg-[#182438] border border-[#334155] rounded-xl px-3.5 py-2.5 text-white placeholder-[#94A3B8] focus:outline-none focus:border-[#F5B942]"
                 />
               </div>
 
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className="block text-slate-300 font-bold uppercase mb-1">Gender</label>
+                  <label className="block text-[#CBD5E1] font-bold uppercase mb-1">Gender</label>
                   <select
                     value={gender}
                     onChange={(e) => setGender(e.target.value as Gender)}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white"
+                    className="w-full bg-[#182438] border border-[#334155] rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#F5B942]"
                   >
-                    <option value="Male">Male</option>
-                    <option value="Female">Female</option>
+                    <option value="Male" className="bg-[#182438] text-white">Male</option>
+                    <option value="Female" className="bg-[#182438] text-white">Female</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-slate-300 font-bold uppercase mb-1">Age</label>
+                  <label className="block text-[#CBD5E1] font-bold uppercase mb-1">Age</label>
                   <input
                     type="number"
                     value={age}
                     onChange={(e) => setAge(e.target.value)}
                     placeholder="26"
-                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white"
+                    className="w-full bg-[#182438] border border-[#334155] rounded-xl px-3.5 py-2 text-white placeholder-[#94A3B8] focus:outline-none focus:border-[#F5B942]"
                   />
                 </div>
                 <div>
-                  <label className="block text-slate-300 font-bold uppercase mb-1">Playing Role</label>
+                  <label className="block text-[#CBD5E1] font-bold uppercase mb-1">Playing Role</label>
                   <select
                     value={role}
                     onChange={(e) => setRole(e.target.value as PlayingRole)}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white"
+                    className="w-full bg-[#182438] border border-[#334155] rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#F5B942]"
                   >
-                    <option value="Batsman">Batsman</option>
-                    <option value="Bowler">Bowler</option>
-                    <option value="All-rounder">All-rounder</option>
-                    <option value="Wicketkeeper">Wicketkeeper</option>
+                    <option value="Batsman" className="bg-[#182438] text-white">Batsman</option>
+                    <option value="Bowler" className="bg-[#182438] text-white">Bowler</option>
+                    <option value="All-rounder" className="bg-[#182438] text-white">All-rounder</option>
+                    <option value="Wicketkeeper" className="bg-[#182438] text-white">Wicketkeeper</option>
                   </select>
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-300 font-bold uppercase mb-1">Category</label>
+                  <label className="block text-[#CBD5E1] font-bold uppercase mb-1">Category</label>
                   <select
                     value={category}
                     onChange={(e) => setCategory(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white"
+                    className="w-full bg-[#182438] border border-[#334155] rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#F5B942]"
                   >
-                    <option value="Marquee">Marquee</option>
-                    <option value="Category A">Category A</option>
-                    <option value="Category B">Category B</option>
-                    <option value="Emerging">Emerging</option>
+                    <option value="Marquee" className="bg-[#182438] text-white">Marquee</option>
+                    <option value="Category A" className="bg-[#182438] text-white">Category A</option>
+                    <option value="Category B" className="bg-[#182438] text-white">Category B</option>
+                    <option value="Emerging" className="bg-[#182438] text-white">Emerging</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-slate-300 font-bold uppercase mb-1">Base Price (Points)</label>
+                  <label className="block text-[#CBD5E1] font-bold uppercase mb-1">Base Price (Points)</label>
                   <input
                     type="number"
                     required
                     value={basePrice}
                     onChange={(e) => setBasePrice(e.target.value)}
                     placeholder="10"
-                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono"
+                    className="w-full bg-[#182438] border border-[#334155] rounded-xl px-3.5 py-2 text-white font-mono placeholder-[#94A3B8] focus:outline-none focus:border-[#F5B942]"
                   />
                 </div>
               </div>
@@ -518,13 +502,13 @@ export default function AdminPlayersPage() {
                 <button
                   type="button"
                   onClick={() => setShowAddModal(false)}
-                  className="flex-1 py-2.5 rounded-xl bg-slate-800 text-slate-300 font-bold"
+                  className="flex-1 py-3 rounded-xl bg-[#334155] hover:bg-[#475569] text-white font-bold transition border border-[#475569]"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black"
+                  className="flex-1 py-3 rounded-xl bg-[#F5B942] hover:bg-[#FFD66B] text-[#101827] font-black transition shadow-md shadow-[#F5B942]/20"
                 >
                   Save Player
                 </button>

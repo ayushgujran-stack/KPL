@@ -1,13 +1,11 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useAuth } from '@/context/AuthContext';
 import { useAuction } from '@/context/AuctionContext';
 import { Team } from '@/types';
-import { Users, Plus, Edit2, Trash2, Trophy, Check, X, ShieldAlert } from 'lucide-react';
+import { Plus, Edit2, Trash2, X, ShieldAlert } from 'lucide-react';
 
 export default function AdminTeamsPage() {
-  const { user } = useAuth();
   const { state, refreshState } = useAuction();
 
   const [teams, setTeams] = useState<Team[]>([]);
@@ -43,6 +41,7 @@ export default function AdminTeamsPage() {
     setPrimaryColor(team.primary_color);
     setCaptainName(team.captain_name);
     setInitialBudget(String(team.initial_budget));
+    setShowAddModal(true);
   };
 
   const handleSaveTeam = async (e: React.FormEvent) => {
@@ -103,12 +102,12 @@ export default function AdminTeamsPage() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 bg-[#101827] min-h-[calc(100vh-4rem)]">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
         <div>
-          <div className="text-xs uppercase font-extrabold text-amber-400 tracking-wider">Master Configuration</div>
+          <div className="text-xs uppercase font-black text-[#F5B942] tracking-wider">Master Configuration</div>
           <h1 className="text-2xl sm:text-3xl font-black text-white">Team Master</h1>
-          <p className="text-xs text-slate-400 mt-1">Configure cricket franchises, team colors, captains, and starting budgets.</p>
+          <p className="text-xs text-[#94A3B8] mt-1 font-medium">Configure cricket franchises, team colors, captains, and starting budgets.</p>
         </div>
 
         <button
@@ -122,7 +121,7 @@ export default function AdminTeamsPage() {
             setInitialBudget('150');
             setShowAddModal(true);
           }}
-          className="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs uppercase tracking-wider transition flex items-center gap-1.5 shadow-md shadow-amber-500/20"
+          className="px-5 py-2.5 rounded-xl bg-[#F5B942] hover:bg-[#FFD66B] text-[#101827] font-black text-xs uppercase tracking-wider transition flex items-center gap-1.5 shadow-lg shadow-[#F5B942]/20"
         >
           <Plus className="w-4 h-4" />
           Add Franchise
@@ -130,7 +129,7 @@ export default function AdminTeamsPage() {
       </div>
 
       {error && (
-        <div className="mb-6 p-4 rounded-xl bg-rose-500/20 border border-rose-500/40 text-rose-300 text-xs flex items-center gap-2">
+        <div className="mb-6 p-4 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2 font-semibold">
           <ShieldAlert className="w-4 h-4 shrink-0 text-rose-400" />
           <span>{error}</span>
         </div>
@@ -141,7 +140,7 @@ export default function AdminTeamsPage() {
         {teams.map((t) => (
           <div
             key={t.id}
-            className="rounded-3xl p-6 bg-slate-900/80 border border-slate-800 backdrop-blur shadow-xl relative overflow-hidden flex flex-col justify-between"
+            className="rounded-3xl p-6 bg-[#202F45] border border-[#334155] shadow-xl relative overflow-hidden flex flex-col justify-between"
           >
             {/* Top Team Color Header */}
             <div className="absolute top-0 left-0 right-0 h-2" style={{ backgroundColor: t.primary_color }} />
@@ -149,23 +148,23 @@ export default function AdminTeamsPage() {
             <div>
               <div className="flex items-center justify-between mb-4">
                 <div
-                  className="w-12 h-12 rounded-2xl flex items-center justify-center font-black text-lg text-white shadow-lg"
+                  className="w-12 h-12 rounded-2xl flex items-center justify-center font-black text-lg text-white shadow-lg shrink-0"
                   style={{ backgroundColor: t.primary_color }}
                 >
                   {t.code}
                 </div>
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1.5">
                   <button
                     onClick={() => handleOpenEdit(t)}
                     title="Edit Franchise"
-                    className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition"
+                    className="p-2 rounded-xl bg-[#182438] hover:bg-[#263852] text-[#CBD5E1] hover:text-white transition border border-[#334155]"
                   >
                     <Edit2 className="w-3.5 h-3.5" />
                   </button>
                   <button
                     onClick={() => handleDeleteTeam(t.id)}
                     title="Delete Franchise"
-                    className="p-2 rounded-lg bg-slate-800 hover:bg-rose-900/50 text-slate-400 hover:text-rose-400 transition"
+                    className="p-2 rounded-xl bg-[#182438] hover:bg-rose-950/50 text-[#94A3B8] hover:text-rose-400 transition border border-[#334155]"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
@@ -173,23 +172,23 @@ export default function AdminTeamsPage() {
               </div>
 
               <h3 className="text-xl font-bold text-white leading-tight">{t.name}</h3>
-              <p className="text-xs text-slate-400 mt-1">
-                Captain: <strong className="text-slate-200">{t.captain_name}</strong>
+              <p className="text-xs text-[#94A3B8] mt-1 font-medium">
+                Captain: <strong className="text-white font-bold">{t.captain_name}</strong>
               </p>
             </div>
 
-            <div className="mt-6 pt-4 border-t border-slate-800 space-y-2 text-xs">
-              <div className="flex justify-between">
-                <span className="text-slate-400">Initial Purse:</span>
-                <span className="font-bold text-white">{t.initial_budget} pts</span>
+            <div className="mt-6 pt-4 border-t border-[#334155] space-y-2 text-xs">
+              <div className="flex justify-between items-center">
+                <span className="text-[#94A3B8]">Initial Purse:</span>
+                <span className="font-bold text-white font-mono">{t.initial_budget} pts</span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-slate-400">Remaining:</span>
-                <span className="font-extrabold text-amber-400">{t.remaining_budget} pts</span>
+              <div className="flex justify-between items-center">
+                <span className="text-[#94A3B8]">Remaining:</span>
+                <span className="font-black text-[#F5B942] font-mono text-sm">{t.remaining_budget} pts</span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-slate-400">Roster Count:</span>
-                <span className="font-semibold text-slate-200">{t.players_count} players</span>
+              <div className="flex justify-between items-center">
+                <span className="text-[#94A3B8]">Roster Count:</span>
+                <span className="font-bold text-white">{t.players_count} players</span>
               </div>
             </div>
           </div>
@@ -198,14 +197,14 @@ export default function AdminTeamsPage() {
 
       {/* Edit / Add Modal */}
       {(showAddModal || editingTeam) && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
-          <div className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl relative">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="max-w-md w-full bg-[#202F45] border border-[#334155] rounded-3xl p-6 sm:p-8 shadow-2xl relative">
             <button
               onClick={() => {
                 setShowAddModal(false);
                 setEditingTeam(null);
               }}
-              className="absolute top-5 right-5 text-slate-400 hover:text-white"
+              className="absolute top-5 right-5 text-[#94A3B8] hover:text-white"
             >
               <X className="w-5 h-5" />
             </button>
@@ -216,20 +215,20 @@ export default function AdminTeamsPage() {
 
             <form onSubmit={handleSaveTeam} className="space-y-4 text-xs">
               <div>
-                <label className="block text-slate-300 font-bold uppercase mb-1">Franchise Name</label>
+                <label className="block text-[#CBD5E1] font-bold uppercase mb-1">Franchise Name</label>
                 <input
                   type="text"
                   required
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="e.g. Gujarat Titans"
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white"
+                  className="w-full bg-[#182438] border border-[#334155] rounded-xl px-3.5 py-2.5 text-white placeholder-[#94A3B8] focus:outline-none focus:border-[#F5B942]"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-300 font-bold uppercase mb-1">Short Code</label>
+                  <label className="block text-[#CBD5E1] font-bold uppercase mb-1">Short Code</label>
                   <input
                     type="text"
                     required
@@ -237,49 +236,49 @@ export default function AdminTeamsPage() {
                     value={code}
                     onChange={(e) => setCode(e.target.value.toUpperCase())}
                     placeholder="e.g. GT"
-                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white uppercase font-mono"
+                    className="w-full bg-[#182438] border border-[#334155] rounded-xl px-3.5 py-2.5 text-white uppercase font-mono placeholder-[#94A3B8] focus:outline-none focus:border-[#F5B942]"
                   />
                 </div>
                 <div>
-                  <label className="block text-slate-300 font-bold uppercase mb-1">Theme Color</label>
+                  <label className="block text-[#CBD5E1] font-bold uppercase mb-1">Theme Color</label>
                   <div className="flex gap-2 items-center">
                     <input
                       type="color"
                       value={primaryColor}
                       onChange={(e) => setPrimaryColor(e.target.value)}
-                      className="w-10 h-8 rounded bg-transparent cursor-pointer"
+                      className="w-10 h-9 rounded bg-transparent cursor-pointer"
                     />
                     <input
                       type="text"
                       value={primaryColor}
                       onChange={(e) => setPrimaryColor(e.target.value)}
-                      className="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-2 py-1.5 text-white font-mono text-[11px]"
+                      className="flex-1 bg-[#182438] border border-[#334155] rounded-xl px-2.5 py-2 text-white font-mono text-[11px]"
                     />
                   </div>
                 </div>
               </div>
 
               <div>
-                <label className="block text-slate-300 font-bold uppercase mb-1">Captain Name</label>
+                <label className="block text-[#CBD5E1] font-bold uppercase mb-1">Captain Name</label>
                 <input
                   type="text"
                   required
                   value={captainName}
                   onChange={(e) => setCaptainName(e.target.value)}
                   placeholder="e.g. Hardik Pandya"
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white"
+                  className="w-full bg-[#182438] border border-[#334155] rounded-xl px-3.5 py-2.5 text-white placeholder-[#94A3B8] focus:outline-none focus:border-[#F5B942]"
                 />
               </div>
 
               <div>
-                <label className="block text-slate-300 font-bold uppercase mb-1">Initial Budget (Pts)</label>
+                <label className="block text-[#CBD5E1] font-bold uppercase mb-1">Initial Budget (Pts)</label>
                 <input
                   type="number"
                   required
                   value={initialBudget}
                   onChange={(e) => setInitialBudget(e.target.value)}
                   placeholder="150"
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono"
+                  className="w-full bg-[#182438] border border-[#334155] rounded-xl px-3.5 py-2.5 text-white font-mono placeholder-[#94A3B8] focus:outline-none focus:border-[#F5B942]"
                 />
               </div>
 
@@ -290,13 +289,13 @@ export default function AdminTeamsPage() {
                     setShowAddModal(false);
                     setEditingTeam(null);
                   }}
-                  className="flex-1 py-2.5 rounded-xl bg-slate-800 text-slate-300 font-bold"
+                  className="flex-1 py-3 rounded-xl bg-[#334155] hover:bg-[#475569] text-white font-bold transition border border-[#475569]"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black"
+                  className="flex-1 py-3 rounded-xl bg-[#F5B942] hover:bg-[#FFD66B] text-[#101827] font-black transition shadow-md shadow-[#F5B942]/20"
                 >
                   Save Team
                 </button>

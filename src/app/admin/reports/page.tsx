@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { FileText, Download, Printer, Users, TrendingUp, Shuffle, DollarSign, Award, CheckCircle2, XCircle } from 'lucide-react';
+import { Download, Printer } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 export default function AdminReportsPage() {
@@ -90,43 +90,43 @@ export default function AdminReportsPage() {
 
   if (loading) {
     return (
-      <div className="py-20 text-center text-slate-400">Loading auction analytical reports...</div>
+      <div className="py-20 text-center text-[#94A3B8] bg-[#101827] min-h-[calc(100vh-4rem)]">Loading auction analytical reports...</div>
     );
   }
 
   const { teams = [], soldPlayers = [], retainedPlayers = [], unsoldPlayers = [], bidsHistory = [], drawHistory = [], genderStats = [], roleStats = [] } = reportData || {};
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 print:p-0 print:bg-white print:text-black">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 bg-[#101827] min-h-[calc(100vh-4rem)] print:p-0 print:bg-white print:text-black">
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8 print:hidden">
         <div>
-          <div className="text-xs uppercase font-extrabold text-amber-400 tracking-wider">Tournament Analytics</div>
+          <div className="text-xs uppercase font-black text-[#F5B942] tracking-wider">Tournament Analytics</div>
           <h1 className="text-2xl sm:text-3xl font-black text-white">Auction Reports & Audits</h1>
-          <p className="text-xs text-slate-400 mt-1">Export comprehensive auction results, roster statements, and bidding trails.</p>
+          <p className="text-xs text-[#94A3B8] mt-1 font-medium">Export comprehensive auction results, roster statements, and bidding trails.</p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2.5">
           <button
             onClick={handleExportExcel}
-            className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold border border-slate-700 transition flex items-center gap-1.5"
+            className="px-4 py-2.5 rounded-xl bg-[#334155] hover:bg-[#475569] text-white text-xs font-bold border border-[#475569] transition flex items-center gap-1.5 shadow-sm"
           >
-            <Download className="w-3.5 h-3.5 text-emerald-400" />
+            <Download className="w-3.5 h-3.5 text-[#22c55e]" />
             Export Full Excel
           </button>
 
           <button
             onClick={handlePrint}
-            className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold border border-slate-700 transition flex items-center gap-1.5"
+            className="px-4 py-2.5 rounded-xl bg-[#334155] hover:bg-[#475569] text-white text-xs font-bold border border-[#475569] transition flex items-center gap-1.5 shadow-sm"
           >
-            <Printer className="w-3.5 h-3.5 text-blue-400" />
+            <Printer className="w-3.5 h-3.5 text-[#60a5fa]" />
             Print Report
           </button>
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="flex flex-wrap gap-2 border-b border-slate-800 pb-4 mb-6 print:hidden">
+      <div className="flex flex-wrap gap-2 border-b border-[#334155] pb-4 mb-6 print:hidden">
         {[
           { id: 'squads', label: 'Team Squads & Purse' },
           { id: 'sold', label: `Sold Players (${soldPlayers.length})` },
@@ -138,10 +138,10 @@ export default function AdminReportsPage() {
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id as any)}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition uppercase tracking-wider ${
+            className={`px-4 py-2 rounded-xl text-xs font-black transition uppercase tracking-wider ${
               activeTab === tab.id
-                ? 'bg-amber-500 text-slate-950 font-black'
-                : 'bg-slate-900 text-slate-400 hover:text-white'
+                ? 'bg-[#F5B942] text-[#101827] shadow-md shadow-[#F5B942]/20'
+                : 'bg-[#182438] text-[#CBD5E1] hover:text-white hover:bg-[#263852] border border-[#334155]'
             }`}
           >
             {tab.label}
@@ -154,72 +154,72 @@ export default function AdminReportsPage() {
         <div className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {teams.map((t: any) => (
-              <div key={t.id} className="p-5 rounded-2xl bg-slate-900/90 border border-slate-800 backdrop-blur">
+              <div key={t.id} className="p-5 rounded-2xl bg-[#202F45] border border-[#334155] shadow-lg">
                 <div className="flex items-center gap-3 mb-3">
                   <div
-                    className="w-10 h-10 rounded-xl flex items-center justify-center font-black text-sm text-white"
+                    className="w-10 h-10 rounded-xl flex items-center justify-center font-black text-sm text-white shrink-0"
                     style={{ backgroundColor: t.primary_color }}
                   >
                     {t.code}
                   </div>
                   <div>
                     <h3 className="font-bold text-white text-base leading-tight">{t.name}</h3>
-                    <p className="text-[10px] text-slate-400">Capt: {t.captain_name}</p>
+                    <p className="text-[10px] text-[#94A3B8]">Capt: {t.captain_name}</p>
                   </div>
                 </div>
 
-                <div className="space-y-1.5 text-xs pt-2 border-t border-slate-800">
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Initial Purse:</span>
-                    <span className="font-semibold text-white">{t.initial_budget} pts</span>
+                <div className="space-y-1.5 text-xs pt-2.5 border-t border-[#334155]">
+                  <div className="flex justify-between items-center">
+                    <span className="text-[#94A3B8]">Initial Purse:</span>
+                    <span className="font-bold text-white font-mono">{t.initial_budget} pts</span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Retention Spent:</span>
-                    <span className="text-amber-400">{t.retention_spent} pts</span>
+                  <div className="flex justify-between items-center">
+                    <span className="text-[#94A3B8]">Retention Spent:</span>
+                    <span className="text-[#F5B942] font-bold font-mono">{t.retention_spent} pts</span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Auction Spent:</span>
-                    <span className="text-blue-400">{t.auction_spent} pts</span>
+                  <div className="flex justify-between items-center">
+                    <span className="text-[#94A3B8]">Auction Spent:</span>
+                    <span className="text-[#60a5fa] font-bold font-mono">{t.auction_spent} pts</span>
                   </div>
-                  <div className="flex justify-between font-bold border-t border-slate-800 pt-1">
-                    <span className="text-slate-300">Remaining Purse:</span>
-                    <span className="text-emerald-400 font-mono text-sm">{t.remaining_budget} pts</span>
+                  <div className="flex justify-between items-center font-bold border-t border-[#334155] pt-1.5">
+                    <span className="text-[#CBD5E1]">Remaining Purse:</span>
+                    <span className="text-[#22c55e] font-mono text-sm font-black">{t.remaining_budget} pts</span>
                   </div>
                 </div>
               </div>
             ))}
           </div>
 
-          <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6">
+          <div className="bg-[#202F45] border border-[#334155] rounded-3xl p-6 shadow-xl">
             <h2 className="text-base font-bold text-white uppercase tracking-wider mb-4">
               Retained Cricketers Overview
             </h2>
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto rounded-xl border border-[#334155]">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
-                  <tr className="border-b border-slate-800 text-[11px] font-bold text-slate-400 uppercase">
-                    <th className="py-2.5 px-3">Player</th>
-                    <th className="py-2.5 px-3">Gender</th>
-                    <th className="py-2.5 px-3">Role</th>
-                    <th className="py-2.5 px-3">Franchise</th>
-                    <th className="py-2.5 px-3 text-right">Points Paid</th>
+                  <tr className="border-b border-[#334155] text-[11px] font-black text-[#94A3B8] uppercase bg-[#182438]">
+                    <th className="py-3 px-3.5">Player</th>
+                    <th className="py-3 px-3.5">Gender</th>
+                    <th className="py-3 px-3.5">Role</th>
+                    <th className="py-3 px-3.5">Franchise</th>
+                    <th className="py-3 px-3.5 text-right">Points Paid</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-800/60">
+                <tbody className="divide-y divide-[#334155]/60">
                   {retainedPlayers.map((p: any) => (
-                    <tr key={p.id}>
-                      <td className="py-2.5 px-3 font-bold text-white">{p.name}</td>
-                      <td className="py-2.5 px-3 text-slate-300">{p.gender}</td>
-                      <td className="py-2.5 px-3 text-blue-300">{p.role}</td>
-                      <td className="py-2.5 px-3">
+                    <tr key={p.id} className="hover:bg-[#182438]/50 transition">
+                      <td className="py-3 px-3.5 font-bold text-white">{p.name}</td>
+                      <td className="py-3 px-3.5 text-[#CBD5E1]">{p.gender}</td>
+                      <td className="py-3 px-3.5 text-[#60a5fa] font-semibold">{p.role}</td>
+                      <td className="py-3 px-3.5">
                         <span
-                          className="px-2 py-0.5 rounded text-[10px] font-bold text-white"
+                          className="px-2.5 py-0.5 rounded text-[10px] font-bold text-white"
                           style={{ backgroundColor: p.team_color }}
                         >
                           {p.team_name}
                         </span>
                       </td>
-                      <td className="py-2.5 px-3 text-right font-mono font-bold text-amber-400">
+                      <td className="py-3 px-3.5 text-right font-mono font-black text-[#F5B942]">
                         {p.retention_points} pts
                       </td>
                     </tr>
@@ -233,11 +233,11 @@ export default function AdminReportsPage() {
 
       {/* Tab 2: Sold Players */}
       {activeTab === 'sold' && (
-        <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6">
-          <div className="overflow-x-auto">
+        <div className="bg-[#202F45] border border-[#334155] rounded-3xl p-6 shadow-xl">
+          <div className="overflow-x-auto rounded-xl border border-[#334155]">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="border-b border-slate-800 text-[11px] font-bold text-slate-400 uppercase">
+                <tr className="border-b border-[#334155] text-[11px] font-black text-[#94A3B8] uppercase bg-[#182438]">
                   <th className="py-3 px-4">Player</th>
                   <th className="py-3 px-4">Role</th>
                   <th className="py-3 px-4">Category</th>
@@ -246,13 +246,13 @@ export default function AdminReportsPage() {
                   <th className="py-3 px-4 text-right">Sold Amount</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/60">
+              <tbody className="divide-y divide-[#334155]/60">
                 {soldPlayers.map((p: any) => (
-                  <tr key={p.id} className="hover:bg-slate-800/40">
+                  <tr key={p.id} className="hover:bg-[#182438]/50 transition">
                     <td className="py-3 px-4 font-bold text-white">{p.name}</td>
-                    <td className="py-3 px-4 text-blue-300">{p.role}</td>
-                    <td className="py-3 px-4 text-amber-300">{p.category}</td>
-                    <td className="py-3 px-4 font-mono">{p.base_price} pts</td>
+                    <td className="py-3 px-4 text-[#60a5fa] font-semibold">{p.role}</td>
+                    <td className="py-3 px-4 text-[#F5B942] font-black">{p.category}</td>
+                    <td className="py-3 px-4 font-mono font-bold text-[#CBD5E1]">{p.base_price} pts</td>
                     <td className="py-3 px-4">
                       <span
                         className="px-2.5 py-0.5 rounded text-[10px] font-bold text-white"
@@ -261,7 +261,7 @@ export default function AdminReportsPage() {
                         {p.team_name}
                       </span>
                     </td>
-                    <td className="py-3 px-4 text-right font-mono font-black text-emerald-400 text-sm">
+                    <td className="py-3 px-4 text-right font-mono font-black text-[#22c55e] text-sm">
                       {p.final_price} pts
                     </td>
                   </tr>
@@ -274,11 +274,11 @@ export default function AdminReportsPage() {
 
       {/* Tab 3: Unsold Players */}
       {activeTab === 'unsold' && (
-        <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6">
-          <div className="overflow-x-auto">
+        <div className="bg-[#202F45] border border-[#334155] rounded-3xl p-6 shadow-xl">
+          <div className="overflow-x-auto rounded-xl border border-[#334155]">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="border-b border-slate-800 text-[11px] font-bold text-slate-400 uppercase">
+                <tr className="border-b border-[#334155] text-[11px] font-black text-[#94A3B8] uppercase bg-[#182438]">
                   <th className="py-3 px-4">Player ID</th>
                   <th className="py-3 px-4">Name</th>
                   <th className="py-3 px-4">Gender</th>
@@ -287,15 +287,15 @@ export default function AdminReportsPage() {
                   <th className="py-3 px-4 text-right">Base Price</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/60">
+              <tbody className="divide-y divide-[#334155]/60">
                 {unsoldPlayers.map((p: any) => (
-                  <tr key={p.id}>
-                    <td className="py-3 px-4 font-mono text-slate-400">#{p.player_number}</td>
+                  <tr key={p.id} className="hover:bg-[#182438]/50 transition">
+                    <td className="py-3 px-4 font-mono text-[#94A3B8]">#{p.player_number}</td>
                     <td className="py-3 px-4 font-bold text-white">{p.name}</td>
-                    <td className="py-3 px-4 text-slate-300">{p.gender}</td>
-                    <td className="py-3 px-4 text-blue-300">{p.role}</td>
-                    <td className="py-3 px-4 text-amber-300">{p.category}</td>
-                    <td className="py-3 px-4 text-right font-mono text-rose-400 font-bold">{p.base_price} pts</td>
+                    <td className="py-3 px-4 text-[#CBD5E1]">{p.gender}</td>
+                    <td className="py-3 px-4 text-[#60a5fa] font-semibold">{p.role}</td>
+                    <td className="py-3 px-4 text-[#F5B942] font-black">{p.category}</td>
+                    <td className="py-3 px-4 text-right font-mono text-[#ef4444] font-black">{p.base_price} pts</td>
                   </tr>
                 ))}
               </tbody>
@@ -306,11 +306,11 @@ export default function AdminReportsPage() {
 
       {/* Tab 4: Bids Log */}
       {activeTab === 'bids' && (
-        <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6">
-          <div className="overflow-x-auto">
+        <div className="bg-[#202F45] border border-[#334155] rounded-3xl p-6 shadow-xl">
+          <div className="overflow-x-auto rounded-xl border border-[#334155]">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="border-b border-slate-800 text-[11px] font-bold text-slate-400 uppercase">
+                <tr className="border-b border-[#334155] text-[11px] font-black text-[#94A3B8] uppercase bg-[#182438]">
                   <th className="py-3 px-4">Time</th>
                   <th className="py-3 px-4">Player</th>
                   <th className="py-3 px-4">Franchise</th>
@@ -318,23 +318,23 @@ export default function AdminReportsPage() {
                   <th className="py-3 px-4 text-right">Bid Amount</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/60">
+              <tbody className="divide-y divide-[#334155]/60">
                 {bidsHistory.map((b: any) => (
-                  <tr key={b.id}>
-                    <td className="py-2.5 px-4 text-slate-400 font-mono text-[11px]">
+                  <tr key={b.id} className="hover:bg-[#182438]/50 transition">
+                    <td className="py-2.5 px-4 text-[#94A3B8] font-mono text-[11px]">
                       {new Date(b.timestamp).toLocaleTimeString()}
                     </td>
                     <td className="py-2.5 px-4 font-bold text-white">{b.player_name}</td>
                     <td className="py-2.5 px-4">
                       <span
-                        className="px-2 py-0.5 rounded text-[10px] font-bold text-white"
+                        className="px-2.5 py-0.5 rounded text-[10px] font-bold text-white"
                         style={{ backgroundColor: b.team_color }}
                       >
                         {b.team_name}
                       </span>
                     </td>
-                    <td className="py-2.5 px-4 text-slate-300">{b.bidder_name}</td>
-                    <td className="py-2.5 px-4 text-right font-mono font-black text-amber-400">
+                    <td className="py-2.5 px-4 text-[#CBD5E1]">{b.bidder_name}</td>
+                    <td className="py-2.5 px-4 text-right font-mono font-black text-[#F5B942]">
                       {b.amount} pts
                     </td>
                   </tr>
@@ -347,11 +347,11 @@ export default function AdminReportsPage() {
 
       {/* Tab 5: Random Draws */}
       {activeTab === 'draws' && (
-        <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6">
-          <div className="overflow-x-auto">
+        <div className="bg-[#202F45] border border-[#334155] rounded-3xl p-6 shadow-xl">
+          <div className="overflow-x-auto rounded-xl border border-[#334155]">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="border-b border-slate-800 text-[11px] font-bold text-slate-400 uppercase">
+                <tr className="border-b border-[#334155] text-[11px] font-black text-[#94A3B8] uppercase bg-[#182438]">
                   <th className="py-3 px-4">Time</th>
                   <th className="py-3 px-4">Player Drawn</th>
                   <th className="py-3 px-4">Role</th>
@@ -360,17 +360,17 @@ export default function AdminReportsPage() {
                   <th className="py-3 px-4 text-right">Base Price</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/60">
+              <tbody className="divide-y divide-[#334155]/60">
                 {drawHistory.map((d: any) => (
-                  <tr key={d.id}>
-                    <td className="py-2.5 px-4 text-slate-400 font-mono text-[11px]">
+                  <tr key={d.id} className="hover:bg-[#182438]/50 transition">
+                    <td className="py-2.5 px-4 text-[#94A3B8] font-mono text-[11px]">
                       {new Date(d.created_at).toLocaleTimeString()}
                     </td>
                     <td className="py-2.5 px-4 font-bold text-white">{d.player_name}</td>
-                    <td className="py-2.5 px-4 text-blue-300">{d.player_role}</td>
-                    <td className="py-2.5 px-4 uppercase text-[10px] font-bold text-purple-400">{d.draw_category}</td>
-                    <td className="py-2.5 px-4 text-slate-300">{d.drawn_by_name}</td>
-                    <td className="py-2.5 px-4 text-right font-mono text-emerald-400 font-bold">{d.base_price} pts</td>
+                    <td className="py-2.5 px-4 text-[#60a5fa] font-semibold">{d.player_role}</td>
+                    <td className="py-2.5 px-4 uppercase text-[10px] font-black text-[#a855f7]">{d.draw_category}</td>
+                    <td className="py-2.5 px-4 text-[#CBD5E1]">{d.drawn_by_name}</td>
+                    <td className="py-2.5 px-4 text-right font-mono text-[#22c55e] font-black">{d.base_price} pts</td>
                   </tr>
                 ))}
               </tbody>
@@ -382,40 +382,40 @@ export default function AdminReportsPage() {
       {/* Tab 6: Analytics */}
       {activeTab === 'analytics' && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6">
+          <div className="bg-[#202F45] border border-[#334155] rounded-3xl p-6 shadow-xl">
             <h3 className="text-base font-bold text-white uppercase tracking-wider mb-4">
               Gender Distribution
             </h3>
             <div className="space-y-3">
               {genderStats.map((g: any) => (
-                <div key={g.gender} className="p-3.5 rounded-2xl bg-slate-950/60 border border-slate-800">
+                <div key={g.gender} className="p-4 rounded-2xl bg-[#182438] border border-[#334155]">
                   <div className="flex justify-between items-center mb-1 text-sm font-bold text-white">
                     <span>{g.gender} Players</span>
-                    <span className="text-amber-400">{g.count} Total</span>
+                    <span className="text-[#F5B942] font-black font-mono">{g.count} Total</span>
                   </div>
-                  <div className="text-xs text-slate-400 flex gap-4 mt-1">
-                    <span>Sold: <strong className="text-emerald-400">{g.sold_count}</strong></span>
-                    <span>Retained: <strong className="text-amber-400">{g.retained_count}</strong></span>
+                  <div className="text-xs text-[#94A3B8] flex gap-4 mt-2">
+                    <span>Sold: <strong className="text-[#22c55e]">{g.sold_count}</strong></span>
+                    <span>Retained: <strong className="text-[#F5B942]">{g.retained_count}</strong></span>
                   </div>
                 </div>
               ))}
             </div>
           </div>
 
-          <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6">
+          <div className="bg-[#202F45] border border-[#334155] rounded-3xl p-6 shadow-xl">
             <h3 className="text-base font-bold text-white uppercase tracking-wider mb-4">
               Playing Role Breakdown
             </h3>
             <div className="space-y-3">
               {roleStats.map((r: any) => (
-                <div key={r.role} className="p-3.5 rounded-2xl bg-slate-950/60 border border-slate-800">
+                <div key={r.role} className="p-4 rounded-2xl bg-[#182438] border border-[#334155]">
                   <div className="flex justify-between items-center mb-1 text-sm font-bold text-white">
                     <span>{r.role}</span>
-                    <span className="text-blue-400">{r.count} Total</span>
+                    <span className="text-[#60a5fa] font-black font-mono">{r.count} Total</span>
                   </div>
-                  <div className="text-xs text-slate-400 flex gap-4 mt-1">
-                    <span>Sold: <strong className="text-emerald-400">{r.sold_count}</strong></span>
-                    <span>Retained: <strong className="text-amber-400">{r.retained_count}</strong></span>
+                  <div className="text-xs text-[#94A3B8] flex gap-4 mt-2">
+                    <span>Sold: <strong className="text-[#22c55e]">{r.sold_count}</strong></span>
+                    <span>Retained: <strong className="text-[#F5B942]">{r.retained_count}</strong></span>
                   </div>
                 </div>
               ))}

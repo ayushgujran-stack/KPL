@@ -180,9 +180,9 @@ export default function AdminDataManagementPage() {
   if (user?.role !== 'super_admin') {
     return (
       <div className="max-w-2xl mx-auto px-4 py-20 text-center">
-        <ShieldAlert className="w-16 h-16 text-rose-500 mx-auto mb-4" />
+        <ShieldAlert className="w-16 h-16 text-[#DC2626] mx-auto mb-4" />
         <h1 className="text-2xl font-black text-white">Super Admin Access Only</h1>
-        <p className="text-xs text-slate-400 mt-2">
+        <p className="text-xs text-[#94A3B8] mt-2">
           The Data Management and Reset module contains destructive operations restricted exclusively to the Super Admin.
         </p>
       </div>
@@ -201,14 +201,14 @@ export default function AdminDataManagementPage() {
             Destructive Maintenance Module
           </div>
           <h1 className="text-2xl sm:text-3xl font-black text-white">Data Management & Reset Safety</h1>
-          <p className="text-xs text-slate-400 mt-1">
+          <p className="text-xs text-[#94A3B8] mt-1">
             Carefully structured operations for preparing fresh tournaments, clearing auction activity, and creating data backups.
           </p>
         </div>
 
         <button
           onClick={handleDownloadBackup}
-          className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-200 border border-slate-700 flex items-center gap-2 transition"
+          className="px-4 py-2 rounded-xl bg-[#202F45] hover:bg-[#263852] text-xs font-bold text-white border border-[#334155] flex items-center gap-2 transition shadow-md"
         >
           <Download className="w-3.5 h-3.5 text-emerald-400" />
           Create Snapshot Backup
@@ -216,7 +216,7 @@ export default function AdminDataManagementPage() {
       </div>
 
       {isBiddingActive && (
-        <div className="mb-6 p-4 rounded-2xl bg-rose-500/20 border border-rose-500/50 text-rose-200 text-xs flex items-center gap-3">
+        <div className="mb-6 p-4 rounded-2xl bg-rose-500/15 border border-rose-500/40 text-rose-200 text-xs flex items-center gap-3">
           <AlertTriangle className="w-5 h-5 shrink-0 text-rose-400" />
           <div>
             <strong>AUCTION CURRENTLY IN PROGRESS!</strong>
@@ -231,8 +231,8 @@ export default function AdminDataManagementPage() {
         <div
           className={`mb-6 p-4 rounded-2xl border text-xs flex items-center gap-2 ${
             message.type === 'success'
-              ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
-              : 'bg-rose-500/20 border-rose-500/40 text-rose-300'
+              ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300'
+              : 'bg-rose-500/15 border-rose-500/40 text-rose-300'
           }`}
         >
           {message.type === 'success' ? (
@@ -245,13 +245,13 @@ export default function AdminDataManagementPage() {
       )}
 
       {/* Tabs */}
-      <div className="flex flex-wrap gap-2 border-b border-slate-800 pb-4 mb-8">
+      <div className="flex flex-wrap gap-2 border-b border-[#334155] pb-4 mb-8">
         <button
           onClick={() => setActiveTab('transactions')}
-          className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition ${
+          className={`px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition ${
             activeTab === 'transactions'
-              ? 'bg-amber-500 text-slate-950 font-black'
-              : 'bg-slate-900 text-slate-400 hover:text-white'
+              ? 'bg-[#F5B942] text-[#101827] font-black shadow-lg shadow-[#F5B942]/20'
+              : 'bg-[#182438] text-[#CBD5E1] border border-[#334155] hover:text-white'
           }`}
         >
           B. Clear Transaction Data
@@ -259,10 +259,10 @@ export default function AdminDataManagementPage() {
 
         <button
           onClick={() => setActiveTab('complete')}
-          className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition ${
+          className={`px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition ${
             activeTab === 'complete'
-              ? 'bg-rose-600 text-white font-black'
-              : 'bg-slate-900 text-slate-400 hover:text-white'
+              ? 'bg-[#DC2626] text-white font-black shadow-lg shadow-rose-600/30'
+              : 'bg-[#182438] text-[#CBD5E1] border border-[#334155] hover:text-white'
           }`}
         >
           C. Reset Complete Auction
@@ -270,10 +270,10 @@ export default function AdminDataManagementPage() {
 
         <button
           onClick={() => setActiveTab('masters')}
-          className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition ${
+          className={`px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition ${
             activeTab === 'masters'
-              ? 'bg-purple-600 text-white font-black'
-              : 'bg-slate-900 text-slate-400 hover:text-white'
+              ? 'bg-purple-600 text-white font-black shadow-lg shadow-purple-600/30'
+              : 'bg-[#182438] text-[#CBD5E1] border border-[#334155] hover:text-white'
           }`}
         >
           A. Clear Master Data
@@ -281,10 +281,10 @@ export default function AdminDataManagementPage() {
 
         <button
           onClick={() => setActiveTab('audit')}
-          className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition ${
+          className={`px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition ${
             activeTab === 'audit'
-              ? 'bg-blue-600 text-white font-black'
-              : 'bg-slate-900 text-slate-400 hover:text-white'
+              ? 'bg-blue-600 text-white font-black shadow-lg shadow-blue-600/30'
+              : 'bg-[#182438] text-[#CBD5E1] border border-[#334155] hover:text-white'
           }`}
         >
           Audit History ({logs.length})
@@ -293,46 +293,46 @@ export default function AdminDataManagementPage() {
 
       {/* Operation B: CLEAR TRANSACTION DATA */}
       {activeTab === 'transactions' && (
-        <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 sm:p-8 backdrop-blur shadow-2xl">
+        <div className="bg-[#202F45] border border-[#334155] rounded-3xl p-6 sm:p-8 backdrop-blur shadow-2xl">
           <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400">
+            <div className="w-10 h-10 rounded-xl bg-[#F5B942]/15 border border-[#F5B942]/30 flex items-center justify-center text-[#F5B942]">
               <RotateCcw className="w-5 h-5" />
             </div>
             <div>
               <h2 className="text-lg font-bold text-white uppercase tracking-wider">
                 Clear Transaction Data (Keep Masters)
               </h2>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-[#94A3B8]">
                 Wipes all live auction activity and automatically recalculates team balances.
               </p>
             </div>
           </div>
 
-          <div className="p-4 rounded-2xl bg-slate-950/70 border border-slate-800 space-y-2 text-xs text-slate-300 mb-6">
-            <div className="font-bold text-amber-400 uppercase text-[11px]">What This Operation Removes:</div>
-            <ul className="list-disc list-inside space-y-1 text-slate-400 pl-1">
+          <div className="p-5 rounded-2xl bg-[#182438] border border-[#334155] space-y-3 text-xs text-[#CBD5E1] mb-6">
+            <div className="font-bold text-[#F5B942] uppercase text-[11px] tracking-wider">What This Operation Removes:</div>
+            <ul className="list-disc list-inside space-y-1.5 text-[#94A3B8] pl-1">
               <li>All bids and chronological bid trails</li>
               <li>Random lottery draw records</li>
               <li>Sold and Unsold transaction results</li>
               <li>Auction player assignments to franchises</li>
             </ul>
 
-            <div className="font-bold text-emerald-400 uppercase text-[11px] pt-2">What This Preserves & Recalculates:</div>
-            <ul className="list-disc list-inside space-y-1 text-slate-400 pl-1">
+            <div className="font-bold text-emerald-400 uppercase text-[11px] tracking-wider pt-2 border-t border-[#334155]/60">What This Preserves & Recalculates:</div>
+            <ul className="list-disc list-inside space-y-1.5 text-[#94A3B8] pl-1">
               <li>Preserves all player profiles, photographs, and categories</li>
               <li>Preserves all franchise masters, captain credentials, and admin accounts</li>
               <li>Preserves configured player retentions</li>
               <li>
-                <strong>Automated Balance Recalculation:</strong> Each franchise budget is set back to 150 points minus retained player costs.
+                <strong className="text-white">Automated Balance Recalculation:</strong> Each franchise budget is set back to 150 points minus retained player costs.
               </li>
-              <li>Auction status returns to <strong>NOT STARTED</strong></li>
+              <li>Auction status returns to <strong className="text-[#F5B942]">NOT_STARTED</strong></li>
             </ul>
           </div>
 
           <form onSubmit={handleClearTransactions} className="space-y-4">
             <div>
-              <label className="block text-xs font-bold text-slate-300 uppercase mb-1.5">
-                Type <strong className="text-amber-400 font-mono">CLEAR TRANSACTIONS</strong> to confirm:
+              <label className="block text-xs font-bold text-[#CBD5E1] uppercase mb-1.5">
+                Type <strong className="text-[#F5B942] font-mono">CLEAR TRANSACTIONS</strong> to confirm:
               </label>
               <input
                 type="text"
@@ -340,14 +340,14 @@ export default function AdminDataManagementPage() {
                 value={transactionPhrase}
                 onChange={(e) => setTransactionPhrase(e.target.value)}
                 placeholder="CLEAR TRANSACTIONS"
-                className="w-full sm:max-w-md bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white font-mono placeholder-slate-600 focus:outline-none focus:border-amber-400"
+                className="w-full sm:max-w-md bg-[#182438] border border-[#334155] rounded-xl px-4 py-2.5 text-sm text-white font-mono placeholder-[#94A3B8] focus:outline-none focus:border-[#F5B942] focus:ring-1 focus:ring-[#F5B942]"
               />
             </div>
 
             <button
               type="submit"
               disabled={loading || isBiddingActive || transactionPhrase !== 'CLEAR TRANSACTIONS'}
-              className="px-6 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs uppercase tracking-wider transition shadow-lg shadow-amber-500/20 disabled:opacity-40"
+              className="px-6 py-3.5 rounded-xl bg-[#F5B942] hover:bg-[#FFD66B] text-[#101827] font-black text-xs uppercase tracking-wider transition shadow-lg shadow-[#F5B942]/20 disabled:bg-[#475569] disabled:text-[#CBD5E1] disabled:cursor-not-allowed"
             >
               {loading ? 'Clearing Transactions...' : 'Execute Clear All Transactions'}
             </button>
@@ -357,24 +357,24 @@ export default function AdminDataManagementPage() {
 
       {/* Operation C: RESET COMPLETE AUCTION */}
       {activeTab === 'complete' && (
-        <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 sm:p-8 backdrop-blur shadow-2xl">
+        <div className="bg-[#202F45] border border-[#334155] rounded-3xl p-6 sm:p-8 backdrop-blur shadow-2xl">
           <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 rounded-xl bg-rose-500/20 border border-rose-500/30 flex items-center justify-center text-rose-400">
+            <div className="w-10 h-10 rounded-xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-400">
               <RotateCcw className="w-5 h-5" />
             </div>
             <div>
               <h2 className="text-lg font-bold text-white uppercase tracking-wider">
                 Reset Complete Auction
               </h2>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-[#94A3B8]">
                 Prepares a completely fresh tournament auction from scratch.
               </p>
             </div>
           </div>
 
-          <div className="p-4 rounded-2xl bg-slate-950/70 border border-slate-800 space-y-2 text-xs text-slate-300 mb-6">
-            <div className="font-bold text-rose-400 uppercase text-[11px]">Comprehensive Reset Scope:</div>
-            <ul className="list-disc list-inside space-y-1 text-slate-400 pl-1">
+          <div className="p-5 rounded-2xl bg-[#182438] border border-[#334155] space-y-3 text-xs text-[#CBD5E1] mb-6">
+            <div className="font-bold text-rose-400 uppercase text-[11px] tracking-wider">Comprehensive Reset Scope:</div>
+            <ul className="list-disc list-inside space-y-1.5 text-[#94A3B8] pl-1">
               <li>Clears all bids, draws, and auction results</li>
               <li>Resets all player statuses to AVAILABLE in pool</li>
               <li>Resets all 4 team budgets back to full 150.0 points</li>
@@ -382,13 +382,13 @@ export default function AdminDataManagementPage() {
               <li>Preserves all players, teams, user accounts, and logos</li>
             </ul>
 
-            <div className="pt-2">
-              <label className="flex items-center gap-2 cursor-pointer text-slate-200">
+            <div className="pt-2 border-t border-[#334155]/60">
+              <label className="flex items-center gap-2 cursor-pointer text-[#CBD5E1] hover:text-white">
                 <input
                   type="checkbox"
                   checked={keepRetentionsOnComplete}
                   onChange={(e) => setKeepRetentionsOnComplete(e.target.checked)}
-                  className="w-4 h-4 rounded text-amber-500 focus:ring-0 bg-slate-900 border-slate-700"
+                  className="w-4 h-4 rounded text-[#F5B942] focus:ring-0 bg-[#182438] border-[#334155]"
                 />
                 <span>Preserve pre-configured player retentions (uncheck to clear retentions as well)</span>
               </label>
@@ -397,7 +397,7 @@ export default function AdminDataManagementPage() {
 
           <form onSubmit={handleResetCompleteAuction} className="space-y-4">
             <div>
-              <label className="block text-xs font-bold text-slate-300 uppercase mb-1.5">
+              <label className="block text-xs font-bold text-[#CBD5E1] uppercase mb-1.5">
                 Type <strong className="text-rose-400 font-mono">RESET AUCTION</strong> to confirm:
               </label>
               <input
@@ -406,14 +406,14 @@ export default function AdminDataManagementPage() {
                 value={completePhrase}
                 onChange={(e) => setCompletePhrase(e.target.value)}
                 placeholder="RESET AUCTION"
-                className="w-full sm:max-w-md bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white font-mono placeholder-slate-600 focus:outline-none focus:border-rose-400"
+                className="w-full sm:max-w-md bg-[#182438] border border-[#334155] rounded-xl px-4 py-2.5 text-sm text-white font-mono placeholder-[#94A3B8] focus:outline-none focus:border-rose-400 focus:ring-1 focus:ring-rose-400"
               />
             </div>
 
             <button
               type="submit"
               disabled={loading || isBiddingActive || completePhrase !== 'RESET AUCTION'}
-              className="px-6 py-3 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-black text-xs uppercase tracking-wider transition shadow-lg shadow-rose-600/30 disabled:opacity-40"
+              className="px-6 py-3.5 rounded-xl bg-[#DC2626] hover:bg-[#ef4444] text-white font-black text-xs uppercase tracking-wider transition shadow-lg shadow-rose-600/30 disabled:bg-[#475569] disabled:text-[#CBD5E1] disabled:cursor-not-allowed"
             >
               {loading ? 'Executing Reset...' : 'Execute Complete Auction Reset'}
             </button>
@@ -423,56 +423,56 @@ export default function AdminDataManagementPage() {
 
       {/* Operation A: CLEAR MASTER DATA */}
       {activeTab === 'masters' && (
-        <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 sm:p-8 backdrop-blur shadow-2xl">
+        <div className="bg-[#202F45] border border-[#334155] rounded-3xl p-6 sm:p-8 backdrop-blur shadow-2xl">
           <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 rounded-xl bg-purple-500/20 border border-purple-500/30 flex items-center justify-center text-purple-400">
+            <div className="w-10 h-10 rounded-xl bg-purple-500/15 border border-purple-500/30 flex items-center justify-center text-purple-400">
               <Trash2 className="w-5 h-5" />
             </div>
             <div>
               <h2 className="text-lg font-bold text-white uppercase tracking-wider">
                 Clear Master Data (Selective)
               </h2>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-[#94A3B8]">
                 Selectively purge master records when configuring brand-new tournament rosters.
               </p>
             </div>
           </div>
 
-          <div className="p-4 rounded-2xl bg-slate-950/70 border border-slate-800 space-y-3 text-xs text-slate-300 mb-6">
-            <div className="font-bold text-purple-400 uppercase text-[11px]">Select Masters to Purge:</div>
+          <div className="p-5 rounded-2xl bg-[#182438] border border-[#334155] space-y-3 text-xs text-[#CBD5E1] mb-6">
+            <div className="font-bold text-purple-400 uppercase text-[11px] tracking-wider">Select Masters to Purge:</div>
 
-            <label className="flex items-center gap-2.5 cursor-pointer">
+            <label className="flex items-center gap-2.5 cursor-pointer text-[#CBD5E1] hover:text-white">
               <input
                 type="checkbox"
                 checked={clearPlayers}
                 onChange={(e) => setClearPlayers(e.target.checked)}
-                className="w-4 h-4 rounded text-purple-500 focus:ring-0 bg-slate-900 border-slate-700"
+                className="w-4 h-4 rounded text-purple-500 focus:ring-0 bg-[#182438] border-[#334155]"
               />
               <span>
                 Clear all cricketers ({state?.totalPlayers ?? 0} player records)
               </span>
             </label>
 
-            <label className="flex items-center gap-2.5 cursor-pointer">
+            <label className="flex items-center gap-2.5 cursor-pointer text-[#CBD5E1] hover:text-white">
               <input
                 type="checkbox"
                 checked={clearTeams}
                 onChange={(e) => setClearTeams(e.target.checked)}
-                className="w-4 h-4 rounded text-purple-500 focus:ring-0 bg-slate-900 border-slate-700"
+                className="w-4 h-4 rounded text-purple-500 focus:ring-0 bg-[#182438] border-[#334155]"
               />
               <span>
                 Clear all franchise teams ({state?.teams?.length ?? 0} franchises) - unlinks captain credentials safely
               </span>
             </label>
 
-            <div className="p-3 rounded-xl bg-purple-950/40 border border-purple-800/40 text-[11px] text-purple-200 mt-2">
+            <div className="p-3.5 rounded-xl bg-purple-950/40 border border-purple-800/40 text-[11px] text-purple-200 mt-2">
               <strong>Account Protection:</strong> The Super Admin account and captain login credentials are strictly preserved.
             </div>
           </div>
 
           <form onSubmit={handleClearMasters} className="space-y-4">
             <div>
-              <label className="block text-xs font-bold text-slate-300 uppercase mb-1.5">
+              <label className="block text-xs font-bold text-[#CBD5E1] uppercase mb-1.5">
                 Type <strong className="text-purple-400 font-mono">CLEAR MASTERS</strong> to confirm:
               </label>
               <input
@@ -481,14 +481,14 @@ export default function AdminDataManagementPage() {
                 value={masterPhrase}
                 onChange={(e) => setMasterPhrase(e.target.value)}
                 placeholder="CLEAR MASTERS"
-                className="w-full sm:max-w-md bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white font-mono placeholder-slate-600 focus:outline-none focus:border-purple-400"
+                className="w-full sm:max-w-md bg-[#182438] border border-[#334155] rounded-xl px-4 py-2.5 text-sm text-white font-mono placeholder-[#94A3B8] focus:outline-none focus:border-purple-400 focus:ring-1 focus:ring-purple-400"
               />
             </div>
 
             <button
               type="submit"
               disabled={loading || isBiddingActive || masterPhrase !== 'CLEAR MASTERS' || (!clearPlayers && !clearTeams)}
-              className="px-6 py-3 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-black text-xs uppercase tracking-wider transition shadow-lg shadow-purple-600/30 disabled:opacity-40"
+              className="px-6 py-3.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-black text-xs uppercase tracking-wider transition shadow-lg shadow-purple-600/30 disabled:bg-[#475569] disabled:text-[#CBD5E1] disabled:cursor-not-allowed"
             >
               {loading ? 'Purging Masters...' : 'Purge Selected Master Data'}
             </button>
@@ -498,34 +498,34 @@ export default function AdminDataManagementPage() {
 
       {/* Audit Log Tab */}
       {activeTab === 'audit' && (
-        <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 backdrop-blur shadow-2xl">
-          <div className="flex items-center justify-between mb-4 border-b border-slate-800 pb-3">
+        <div className="bg-[#202F45] border border-[#334155] rounded-3xl p-6 backdrop-blur shadow-2xl">
+          <div className="flex items-center justify-between mb-4 border-b border-[#334155] pb-3">
             <h2 className="text-base font-bold text-white uppercase tracking-wider flex items-center gap-2">
               <Activity className="w-4 h-4 text-blue-400" />
               Administrative Audit Logs
             </h2>
-            <span className="text-[10px] text-slate-400">Total Entries: {logs.length}</span>
+            <span className="text-[10px] text-[#94A3B8]">Total Entries: {logs.length}</span>
           </div>
 
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="border-b border-slate-800 text-[11px] font-bold text-slate-400 uppercase bg-slate-950/40">
+                <tr className="border-b border-[#334155] text-[11px] font-bold text-[#CBD5E1] uppercase bg-[#182438]">
                   <th className="py-2.5 px-3">Date & Time</th>
                   <th className="py-2.5 px-3">Admin</th>
                   <th className="py-2.5 px-3">Action</th>
                   <th className="py-2.5 px-3">Audit Details</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/60 font-mono text-[11px]">
+              <tbody className="divide-y divide-[#334155]/60 font-mono text-[11px]">
                 {logs.map((l) => (
-                  <tr key={l.id}>
-                    <td className="py-2.5 px-3 text-slate-400 whitespace-nowrap">
+                  <tr key={l.id} className="hover:bg-[#182438]/50 transition">
+                    <td className="py-2.5 px-3 text-[#94A3B8] whitespace-nowrap">
                       {new Date(l.created_at).toLocaleString()}
                     </td>
-                    <td className="py-2.5 px-3 font-bold text-slate-200">{l.user_name} ({l.user_role})</td>
-                    <td className="py-2.5 px-3 text-amber-400 font-bold">{l.action}</td>
-                    <td className="py-2.5 px-3 text-slate-300 font-sans">{l.details}</td>
+                    <td className="py-2.5 px-3 font-bold text-white">{l.user_name} ({l.user_role})</td>
+                    <td className="py-2.5 px-3 text-[#F5B942] font-bold">{l.action}</td>
+                    <td className="py-2.5 px-3 text-[#CBD5E1] font-sans">{l.details}</td>
                   </tr>
                 ))}
               </tbody>
