@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { useAuction } from '@/context/AuctionContext';
 import { Player } from '@/types';
-import { Lock, Unlock, Plus, Trash2, CheckCircle2, AlertCircle, ShieldAlert } from 'lucide-react';
+import { Lock, Unlock, Plus, Trash2, CheckCircle2, AlertCircle, ShieldAlert, Edit2, RotateCcw, X, Check } from 'lucide-react';
 
 export default function AdminRetentionPage() {
   const { user, isLoading } = useAuth();
@@ -16,6 +16,8 @@ export default function AdminRetentionPage() {
   const [selectedTeam, setSelectedTeam] = useState<string>('');
   const [selectedPlayer, setSelectedPlayer] = useState<string>('');
   const [points, setPoints] = useState<string>('20');
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editPoints, setEditPoints] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
@@ -28,8 +30,8 @@ export default function AdminRetentionPage() {
     setLoading(true);
     try {
       const [retRes, plyRes] = await Promise.all([
-        fetch('/api/retention'),
-        fetch('/api/players?status=available'),
+        fetch('/api/retention', { cache: 'no-store' }),
+        fetch('/api/players?status=available', { cache: 'no-store' }),
       ]);
 
       const retData = await retRes.json();
@@ -42,7 +44,7 @@ export default function AdminRetentionPage() {
   };
 
   useEffect(() => {
-    if (user?.role === 'super_admin') {
+    if (user && ['super_admin', 'organiser_1', 'organiser_2'].includes(user.role)) {
       fetchRetentionsAndPlayers();
     }
   }, [state?.event?.status, user]);
@@ -55,15 +57,15 @@ export default function AdminRetentionPage() {
     );
   }
 
-  if (user?.role !== 'super_admin') {
+  if (!user || !['super_admin', 'organiser_1', 'organiser_2'].includes(user.role)) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-24 text-center">
         <div className="w-16 h-16 rounded-2xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-400 mx-auto mb-4">
           <ShieldAlert className="w-8 h-8" />
         </div>
-        <h1 className="text-2xl font-black text-white">Super Admin Access Required</h1>
+        <h1 className="text-2xl font-black text-white">Administrator Access Required</h1>
         <p className="text-xs text-[#94A3B8] mt-2">
-          Player retention configuration and purse allocation are restricted exclusively to the Super Admin.
+          Player retention configuration and purse allocation are restricted to Super Admins and Organisers.
         </p>
         <div className="mt-6">
           <Link
@@ -77,6 +79,20 @@ export default function AdminRetentionPage() {
     );
   }
 
+  // Count retentions per team
+  const teamRetentionCounts = retentions.reduce((acc: Record<string, number>, r) => {
+    acc[r.team_id] = (acc[r.team_id] || 0) + 1;
+    return acc;
+  }, {});
+
+  const handlePlayerChange = (playerId: string) => {
+    setSelectedPlayer(playerId);
+    const chosen = availablePlayers.find((p) => p.id === playerId);
+    if (chosen) {
+      setPoints(String(chosen.base_price));
+    }
+  };
+
   const handleAddRetention = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -84,6 +100,12 @@ export default function AdminRetentionPage() {
 
     if (!selectedTeam || !selectedPlayer || !points) {
       setError('Please select a franchise, player, and enter valid retention points.');
+      return;
+    }
+
+    const currentCount = teamRetentionCounts[selectedTeam] || 0;
+    if (currentCount >= 2) {
+      setError('Selected franchise has already reached the maximum limit of 2 retained players.');
       return;
     }
 
@@ -110,6 +132,35 @@ export default function AdminRetentionPage() {
     }
   };
 
+  const handleUpdateRetention = async (id: string) => {
+    setError(null);
+    setSuccessMsg(null);
+
+    const numPoints = Number(editPoints);
+    if (!numPoints || numPoints <= 0) {
+      setError('Please enter a valid positive number of points.');
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/retention', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, points: numPoints }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to update retention points');
+
+      setSuccessMsg('Retention points updated successfully!');
+      setEditingId(null);
+      await fetchRetentionsAndPlayers();
+      await refreshState();
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
+
   const handleRemoveRetention = async (id: string) => {
     if (!confirm('Remove this player retention? Points will be returned to team budget.')) return;
     setError(null);
@@ -118,9 +169,32 @@ export default function AdminRetentionPage() {
     try {
       const res = await fetch(`/api/retention?id=${id}`, { method: 'DELETE' });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
+      if (!res.ok) throw new Error(data.error || 'Failed to remove retention');
 
       setSuccessMsg('Retention removed and points refunded.');
+      await fetchRetentionsAndPlayers();
+      await refreshState();
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
+
+  const handleUnlockRetentions = async () => {
+    if (!confirm('Reset current auction stage to PRE-AUCTION (NOT_STARTED) to unlock player retention modifications?')) return;
+    setError(null);
+    setSuccessMsg(null);
+
+    try {
+      const res = await fetch('/api/auction/control', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'unlock_retention' }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to unlock retentions');
+
+      setSuccessMsg('Pre-auction window unlocked! Retentions can now be edited.');
       await fetchRetentionsAndPlayers();
       await refreshState();
     } catch (err: any) {
@@ -140,12 +214,22 @@ export default function AdminRetentionPage() {
           </p>
         </div>
 
-        <div>
+        <div className="flex items-center gap-3">
           {isAuctionStarted ? (
-            <span className="px-4 py-2 rounded-full bg-rose-500/15 text-rose-300 border border-rose-500/40 text-xs font-bold flex items-center gap-1.5 shadow-sm">
-              <Lock className="w-3.5 h-3.5 text-rose-400" />
-              Retentions Locked (Auction Started)
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="px-4 py-2 rounded-full bg-rose-500/15 text-rose-300 border border-rose-500/40 text-xs font-bold flex items-center gap-1.5 shadow-sm">
+                <Lock className="w-3.5 h-3.5 text-rose-400" />
+                Retentions Locked ({event?.status})
+              </span>
+              <button
+                onClick={handleUnlockRetentions}
+                className="px-3.5 py-2 rounded-xl bg-[#182438] hover:bg-[#202F45] border border-[#F5B942]/50 text-[#F5B942] text-xs font-bold flex items-center gap-1.5 transition shadow"
+                title="Reset status to NOT_STARTED to configure retentions"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                Unlock Window
+              </button>
+            </div>
           ) : (
             <span className="px-4 py-2 rounded-full bg-[#16A34A]/15 text-[#22c55e] border border-[#16A34A]/40 text-xs font-bold flex items-center gap-1.5 shadow-sm">
               <Unlock className="w-3.5 h-3.5 text-[#22c55e]" />
@@ -188,11 +272,15 @@ export default function AdminRetentionPage() {
                 className="w-full bg-[#182438] border border-[#334155] rounded-xl px-3.5 py-2.5 text-white disabled:opacity-50 focus:outline-none focus:border-[#F5B942]"
               >
                 <option value="" className="bg-[#182438] text-white">-- Choose Franchise --</option>
-                {teams.map((t) => (
-                  <option key={t.id} value={t.id} className="bg-[#182438] text-white">
-                    {t.name} (Retained: {t.retention_spent} pts, Left: {t.remaining_budget} pts)
-                  </option>
-                ))}
+                {teams.map((t) => {
+                  const count = teamRetentionCounts[t.id] || 0;
+                  const isMax = count >= 2;
+                  return (
+                    <option key={t.id} value={t.id} disabled={isMax} className="bg-[#182438] text-white">
+                      {t.name} ({count}/2 retained) — {t.remaining_budget} pts left {isMax ? ' [MAX]' : ''}
+                    </option>
+                  );
+                })}
               </select>
             </div>
 
@@ -201,13 +289,13 @@ export default function AdminRetentionPage() {
               <select
                 disabled={isAuctionStarted}
                 value={selectedPlayer}
-                onChange={(e) => setSelectedPlayer(e.target.value)}
+                onChange={(e) => handlePlayerChange(e.target.value)}
                 className="w-full bg-[#182438] border border-[#334155] rounded-xl px-3.5 py-2.5 text-white disabled:opacity-50 focus:outline-none focus:border-[#F5B942]"
               >
                 <option value="" className="bg-[#182438] text-white">-- Choose Eligible Cricketer --</option>
                 {availablePlayers.map((p) => (
                   <option key={p.id} value={p.id} className="bg-[#182438] text-white">
-                    {p.name} ({p.role}, {p.category} - Base {p.base_price} pts)
+                    {p.name} ({p.role}, {p.category} — Base {p.base_price} pts)
                   </option>
                 ))}
               </select>
@@ -233,7 +321,7 @@ export default function AdminRetentionPage() {
 
             <button
               type="submit"
-              disabled={isAuctionStarted || !selectedTeam || !selectedPlayer}
+              disabled={isAuctionStarted || !selectedTeam || !selectedPlayer || (teamRetentionCounts[selectedTeam] || 0) >= 2}
               className="w-full mt-2 py-3.5 rounded-xl bg-[#F5B942] hover:bg-[#FFD66B] text-[#101827] font-black text-xs uppercase tracking-wider shadow-lg shadow-[#F5B942]/20 transition disabled:bg-[#475569] disabled:text-[#CBD5E1] disabled:cursor-not-allowed"
             >
               Confirm Retention
@@ -281,13 +369,54 @@ export default function AdminRetentionPage() {
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-4">
-                      <div className="text-right">
-                        <div className="font-black font-mono text-[#F5B942] text-sm">{r.points} pts</div>
-                        <div className="text-[9px] text-[#94A3B8] uppercase font-bold">Retention Cost</div>
-                      </div>
+                    <div className="flex items-center gap-3">
+                      {editingId === r.id ? (
+                        <div className="flex items-center gap-1.5">
+                          <input
+                            type="number"
+                            min="1"
+                            max="150"
+                            value={editPoints}
+                            onChange={(e) => setEditPoints(e.target.value)}
+                            className="w-16 px-2 py-1 bg-[#202F45] border border-[#F5B942] rounded-lg text-white font-mono text-xs focus:outline-none"
+                          />
+                          <button
+                            onClick={() => handleUpdateRetention(r.id)}
+                            className="p-1.5 rounded-lg bg-[#16A34A] text-white hover:bg-[#22c55e] transition"
+                            title="Save Points"
+                          >
+                            <Check className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => setEditingId(null)}
+                            className="p-1.5 rounded-lg bg-[#334155] text-[#CBD5E1] hover:text-white transition"
+                            title="Cancel"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="text-right">
+                          <div className="font-black font-mono text-[#F5B942] text-sm flex items-center justify-end gap-1.5">
+                            {r.points} pts
+                            {!isAuctionStarted && (
+                              <button
+                                onClick={() => {
+                                  setEditingId(r.id);
+                                  setEditPoints(String(r.points));
+                                }}
+                                title="Edit Points"
+                                className="text-[#94A3B8] hover:text-[#F5B942] transition p-0.5"
+                              >
+                                <Edit2 className="w-3 h-3" />
+                              </button>
+                            )}
+                          </div>
+                          <div className="text-[9px] text-[#94A3B8] uppercase font-bold">Retention Cost</div>
+                        </div>
+                      )}
 
-                      {!isAuctionStarted && (
+                      {!isAuctionStarted && editingId !== r.id && (
                         <button
                           onClick={() => handleRemoveRetention(r.id)}
                           title="Release Retention"

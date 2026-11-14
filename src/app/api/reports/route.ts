@@ -1,9 +1,10 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, connection } from 'next/server';
 import { db } from '@/lib/db';
 import { getTeamsWithBudgets } from '@/lib/auction-service';
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
+    await connection();
     const teams = getTeamsWithBudgets();
 
     // Sold players with team details
@@ -89,6 +90,10 @@ export async function GET() {
       drawHistory,
       genderStats,
       roleStats,
+    }, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+      },
     });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });

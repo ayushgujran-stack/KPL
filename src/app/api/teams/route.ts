@@ -1,13 +1,18 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, connection } from 'next/server';
 import { db } from '@/lib/db';
 import { getTeamsWithBudgets, logAudit } from '@/lib/auction-service';
 import { getCurrentUser } from '@/lib/auth';
 import crypto from 'crypto';
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
+    await connection();
     const teams = getTeamsWithBudgets();
-    return NextResponse.json({ teams });
+    return NextResponse.json({ teams }, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+      },
+    });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

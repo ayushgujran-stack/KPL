@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, connection } from 'next/server';
 import { db } from '@/lib/db';
 import { getCurrentUser } from '@/lib/auth';
 import { logAudit } from '@/lib/auction-service';
@@ -7,6 +7,7 @@ import crypto from 'crypto';
 
 export async function GET(req: Request) {
   try {
+    await connection();
     const { searchParams } = new URL(req.url);
     const search = searchParams.get('search') || '';
     const gender = searchParams.get('gender') || '';
@@ -50,7 +51,11 @@ export async function GET(req: Request) {
     query += ` ORDER BY p.player_number ASC`;
 
     const players = db.prepare(query).all(...params);
-    return NextResponse.json({ players });
+    return NextResponse.json({ players }, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+      },
+    });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

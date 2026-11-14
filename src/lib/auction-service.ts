@@ -610,7 +610,7 @@ export function reintroducePlayer(playerId: string, user: { id: string; name: st
 }
 
 export function controlAuction(
-  action: 'pause' | 'resume' | 'reset_timer' | 'set_timer_duration' | 'start_bidding' | 'next_random_draw',
+  action: 'pause' | 'resume' | 'reset_timer' | 'set_timer_duration' | 'start_bidding' | 'next_random_draw' | 'unlock_retention',
   payload: any,
   user: { id: string; name: string; role: string }
 ) {
@@ -643,6 +643,21 @@ export function controlAuction(
         duration
       );
       logAudit(user.id, user.name, user.role, 'TIMER_DURATION_UPDATED', `Default countdown timer set to ${duration}s.`);
+    } else if (action === 'unlock_retention') {
+      if (['BIDDING'].includes(currentStatus)) {
+        throw new Error('Cannot unlock retention while live bidding is in progress. Pause or conclude the round first.');
+      }
+      db.prepare(`
+        UPDATE auction_events
+        SET status = 'NOT_STARTED',
+            current_player_id = NULL,
+            current_bid = 0,
+            current_bid_team_id = NULL,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = 'kpl-2026'
+      `).run();
+      db.prepare(`UPDATE players SET status = 'available' WHERE status = 'in_auction'`).run();
+      logAudit(user.id, user.name, user.role, 'RETENTION_UNLOCKED', 'Auction returned to NOT_STARTED to allow retention changes.');
     }
   });
 
@@ -733,6 +748,46 @@ export function removeRetention(retentionId: string, user: { id: string; name: s
       user.role,
       'RETENTION_REMOVED',
       `Removed retention of ${ret.player_name} from ${ret.team_name}.`
+    );
+  });
+
+  tx();
+  return getAuctionState();
+}
+
+export function updateRetention(retentionId: string, newPoints: number, user: { id: string; name: string; role: string }) {
+  const tx = db.transaction(() => {
+    const event = db.prepare(`SELECT status FROM auction_events WHERE id = 'kpl-2026'`).get() as { status: string };
+    if (normalizeAuctionStatus(event?.status) !== 'NOT_STARTED') {
+      throw new Error('Retention is locked while auction is active.');
+    }
+
+    if (typeof newPoints !== 'number' || newPoints <= 0) {
+      throw new Error('Points must be a positive number.');
+    }
+
+    const ret = db.prepare(`SELECT * FROM team_retentions WHERE id = ?`).get(retentionId) as any;
+    if (!ret) throw new Error('Retention record not found.');
+
+    const team = db.prepare(`SELECT * FROM teams WHERE id = ?`).get(ret.team_id) as Team;
+    const otherSpentRow = db.prepare(`
+      SELECT COALESCE(SUM(points), 0) as spent FROM team_retentions WHERE team_id = ? AND id != ?
+    `).get(ret.team_id, retentionId) as { spent: number };
+
+    if (otherSpentRow.spent + newPoints > team.initial_budget) {
+      throw new Error(`Updated points (${newPoints} pts) exceed remaining budget (${team.initial_budget - otherSpentRow.spent} pts)!`);
+    }
+
+    db.prepare(`UPDATE team_retentions SET points = ? WHERE id = ?`).run(newPoints, retentionId);
+    db.prepare(`UPDATE players SET sold_price = ? WHERE id = ?`).run(newPoints, ret.player_id);
+
+    const player = db.prepare(`SELECT name FROM players WHERE id = ?`).get(ret.player_id) as { name: string };
+    logAudit(
+      user.id,
+      user.name,
+      user.role,
+      'RETENTION_UPDATED',
+      `Updated retention points for ${player.name} (${team.name}) to ${newPoints} pts.`
     );
   });
 

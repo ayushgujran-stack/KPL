@@ -373,6 +373,30 @@ async function runAudit() {
       });
       const passedDup = retDupRes.status === 400;
       record('Retention', 'Prevent Same Player Retained by Multiple Teams', passedDup);
+
+      // Test PUT /api/retention: Update retention points from 20 to 25
+      const currentRets = await (await fetch(`${BASE_URL}/api/retention`, { headers: { Cookie: adminCookie } })).json();
+      const p1Ret = currentRets.retentions?.find((r: any) => r.player_id === player1.id);
+      if (p1Ret) {
+        const updateRes = await fetch(`${BASE_URL}/api/retention`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', Cookie: adminCookie },
+          body: JSON.stringify({ id: p1Ret.id, points: 25 }),
+        });
+        const updateData = await updateRes.json();
+        const mtUpdated = updateData.teams?.find((t: any) => t.id === 'team-mt');
+        const updatePassed = updateRes.status === 200 && mtUpdated?.remaining_budget === 110;
+        record('Retention', 'Update Retention Points (20 -> 25 pts) & Recalculate Purse (150 - 25 - 15 = 110 pts)', updatePassed);
+      }
+
+      // Test Organiser 1 permission to retain player for another team
+      const orgRetRes = await fetch(`${BASE_URL}/api/retention`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Cookie: org1Cookie },
+        body: JSON.stringify({ team_id: 'team-rc', player_id: available[2]?.id || 'ply-ply-021', points: 15 }),
+      });
+      const orgRetPassed = orgRetRes.status === 200;
+      record('Retention', 'Organiser Permitted to Manage Retention (/api/retention)', orgRetPassed);
     }
   } catch (err: any) {
     record('Retention', 'Retention Testing', false, err.message);

@@ -1,10 +1,11 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, connection } from 'next/server';
 import { db } from '@/lib/db';
 import { getTeamsWithBudgets, logAudit } from '@/lib/auction-service';
 import { getCurrentUser } from '@/lib/auth';
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    await connection();
     const { id } = await params;
     const teams = getTeamsWithBudgets();
     const team = teams.find((t) => t.id === id);
@@ -30,7 +31,11 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 
     const squad = [...retainedPlayers, ...soldPlayers];
 
-    return NextResponse.json({ team, squad });
+    return NextResponse.json({ team, squad }, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+      },
+    });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
