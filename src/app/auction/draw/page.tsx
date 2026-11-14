@@ -4,8 +4,9 @@ import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuction } from '@/context/AuctionContext';
 import { useAuth } from '@/context/AuthContext';
-import { Shuffle, ArrowRight, CheckCircle2, AlertTriangle, Sparkles, User, Tag, Award } from 'lucide-react';
+import { Shuffle, ArrowRight, CheckCircle2, AlertTriangle, Sparkles, Radio } from 'lucide-react';
 import confetti from 'canvas-confetti';
+import Link from 'next/link';
 
 export default function RandomDrawPage() {
   const router = useRouter();
@@ -22,7 +23,18 @@ export default function RandomDrawPage() {
 
   const isOrganiser = user && ['super_admin', 'organiser_1', 'organiser_2'].includes(user.role);
 
+  const currentStatus = state?.event?.status ? (state.event.status.toUpperCase() as string) : 'NOT_STARTED';
+  const isAuctionLive = ['PLAYER_READY', 'BIDDING', 'BIDDING_PAUSED'].includes(currentStatus);
+
+  // If a player is already drawn in the backend state, show them
+  const activeDrawnPlayer = drawResult || (currentStatus === 'RANDOM_DRAW' ? state?.currentPlayer : null);
+
   const handleStartDraw = async () => {
+    if (isAuctionLive) {
+      setError(`Cannot start lottery draw while a player is active on the live auction podium (Status: ${currentStatus}). Please finish the current auction round first.`);
+      return;
+    }
+
     setError(null);
     setConfirmed(false);
     setIsDrawing(true);
@@ -35,7 +47,7 @@ export default function RandomDrawPage() {
       const candidates = data.candidates || [data.selectedPlayer];
       let counter = 0;
       const totalSteps = 24; // 24 flickers
-      let speed = 60; // ms
+      const speed = 60; // ms
 
       const interval = setInterval(() => {
         const item = candidates[counter % candidates.length];
@@ -66,6 +78,7 @@ export default function RandomDrawPage() {
 
   const handleConfirmAndProceed = async () => {
     if (!isOrganiser) return;
+    setError(null);
     const res = await confirmDraw();
     if (res.success) {
       setConfirmed(true);
@@ -89,6 +102,33 @@ export default function RandomDrawPage() {
           Cryptographically random selection of eligible cricket players. Retained and sold players are strictly excluded.
         </p>
       </div>
+
+      {/* Podium Active Warning Banner */}
+      {isAuctionLive && (
+        <div className="mb-6 p-5 rounded-2xl bg-amber-500/15 border border-amber-500/30 backdrop-blur">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-500/20 flex items-center justify-center text-amber-400 shrink-0">
+                <Radio className="w-5 h-5 animate-pulse" />
+              </div>
+              <div>
+                <div className="text-xs uppercase font-extrabold text-amber-400 tracking-wider">
+                  Auction Currently Active on Podium ({currentStatus})
+                </div>
+                <div className="text-white font-bold text-sm mt-0.5">
+                  Player #{state?.currentPlayer?.player_number} {state?.currentPlayer?.name} is on the live stage. Complete this round before drawing the next player.
+                </div>
+              </div>
+            </div>
+            <Link
+              href="/auction/live"
+              className="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs uppercase tracking-wider transition shrink-0 flex items-center gap-1.5 shadow-lg shadow-amber-500/20"
+            >
+              Go to Live Podium →
+            </Link>
+          </div>
+        </div>
+      )}
 
       {!isOrganiser && (
         <div className="mb-6 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs flex items-center justify-between">
@@ -121,12 +161,12 @@ export default function RandomDrawPage() {
           {(['all', 'male', 'female'] as const).map((cat) => (
             <button
               key={cat}
-              disabled={isDrawing || !isOrganiser}
+              disabled={isDrawing || !isOrganiser || isAuctionLive}
               onClick={() => setCategory(cat)}
               className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition ${
                 category === cat
                   ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/30'
-                  : 'bg-slate-800/80 text-slate-400 hover:text-white hover:bg-slate-700'
+                  : 'bg-slate-800/80 text-slate-400 hover:text-white hover:bg-slate-700 disabled:opacity-50'
               }`}
             >
               {cat === 'all' ? 'All Players' : cat === 'male' ? 'Male Only' : 'Female Only'}
@@ -143,7 +183,7 @@ export default function RandomDrawPage() {
             )}
 
             <img
-              src={drawResult ? drawResult.photo_url : animatingPhoto}
+              src={activeDrawnPlayer ? activeDrawnPlayer.photo_url : animatingPhoto}
               alt="Player Spotlight"
               className={`w-full h-full object-cover transition-all duration-300 ${
                 isDrawing ? 'scale-110 blur-[1px]' : 'scale-100'
@@ -154,28 +194,28 @@ export default function RandomDrawPage() {
 
             {/* Corner ID Badge */}
             <div className="absolute top-3 left-3 px-2 py-0.5 rounded bg-slate-900/80 border border-slate-700 text-[10px] font-mono font-bold text-amber-400">
-              {drawResult ? `#${drawResult.player_number}` : 'POOL'}
+              {activeDrawnPlayer ? `#${activeDrawnPlayer.player_number}` : 'POOL'}
             </div>
           </div>
 
           {/* Player Name / Reveal Banner */}
           <div className="min-h-16 flex flex-col items-center justify-center mb-6">
             <h2 className="text-2xl sm:text-3xl font-black text-white uppercase tracking-tight">
-              {drawResult ? drawResult.name : animatingName}
+              {activeDrawnPlayer ? activeDrawnPlayer.name : animatingName}
             </h2>
-            {drawResult && (
+            {activeDrawnPlayer && (
               <div className="flex flex-wrap items-center justify-center gap-2 mt-2">
                 <span className="px-2.5 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30 text-xs font-semibold">
-                  {drawResult.role}
+                  {activeDrawnPlayer.role}
                 </span>
                 <span className="px-2.5 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30 text-xs font-semibold">
-                  {drawResult.gender}
+                  {activeDrawnPlayer.gender}
                 </span>
                 <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-bold">
-                  {drawResult.category}
+                  {activeDrawnPlayer.category}
                 </span>
                 <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-black">
-                  Base: {drawResult.base_price} Pts
+                  Base: {activeDrawnPlayer.base_price} Pts
                 </span>
               </div>
             )}
@@ -183,29 +223,29 @@ export default function RandomDrawPage() {
 
           {/* Action Buttons */}
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            {!drawResult ? (
+            {!activeDrawnPlayer ? (
               <button
                 onClick={handleStartDraw}
-                disabled={isDrawing || !isOrganiser}
+                disabled={isDrawing || !isOrganiser || isAuctionLive}
                 className="w-full sm:w-auto px-8 py-3.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-black text-sm uppercase tracking-wider shadow-xl shadow-purple-500/25 flex items-center justify-center gap-2 transition disabled:opacity-50"
               >
                 <Shuffle className={`w-4 h-4 ${isDrawing ? 'animate-spin' : ''}`} />
-                {isDrawing ? 'Selecting Player...' : 'Start Random Draw'}
+                {isDrawing ? 'Selecting Player...' : isAuctionLive ? 'Auction Active on Podium' : 'Start Random Draw'}
               </button>
             ) : (
               <>
                 <button
                   onClick={handleStartDraw}
-                  disabled={isDrawing || !isOrganiser}
-                  className="w-full sm:w-auto px-5 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs uppercase tracking-wider border border-slate-700 transition"
+                  disabled={isDrawing || !isOrganiser || isAuctionLive}
+                  className="w-full sm:w-auto px-5 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs uppercase tracking-wider border border-slate-700 transition disabled:opacity-50"
                 >
                   Draw Another
                 </button>
 
                 <button
                   onClick={handleConfirmAndProceed}
-                  disabled={!isOrganiser || confirmed}
-                  className="w-full sm:w-auto px-8 py-3.5 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-slate-950 font-black text-sm uppercase tracking-wider shadow-xl shadow-emerald-500/25 flex items-center justify-center gap-2 transition"
+                  disabled={!isOrganiser || confirmed || isAuctionLive}
+                  className="w-full sm:w-auto px-8 py-3.5 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-slate-950 font-black text-sm uppercase tracking-wider shadow-xl shadow-emerald-500/25 flex items-center justify-center gap-2 transition disabled:opacity-50"
                 >
                   <CheckCircle2 className="w-5 h-5" />
                   Confirm & Move to Live Auction

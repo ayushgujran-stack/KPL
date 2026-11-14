@@ -68,7 +68,7 @@ export function initDatabase() {
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
       year INTEGER NOT NULL,
-      status TEXT NOT NULL DEFAULT 'not_started', -- 'not_started', 'drawing', 'drawn', 'bidding', 'paused', 'sold', 'unsold', 'completed'
+      status TEXT NOT NULL DEFAULT 'NOT_STARTED', -- 'NOT_STARTED', 'RANDOM_DRAW', 'PLAYER_READY', 'BIDDING', 'BIDDING_PAUSED', 'RESULT_COMPLETED', 'AUCTION_COMPLETED'
       initial_budget REAL NOT NULL DEFAULT 150.0,
       current_player_id TEXT,
       current_bid REAL NOT NULL DEFAULT 0.0,
@@ -189,8 +189,23 @@ export function initDatabase() {
   if (!existingEvent) {
     db.prepare(`
       INSERT INTO auction_events (id, name, year, status, initial_budget, current_bid, bid_timer, timer_duration, draw_category)
-      VALUES ('kpl-2026', 'Premier Cricket League Auction 2026', 2026, 'not_started', 150.0, 0.0, 20, 20, 'all')
+      VALUES ('kpl-2026', 'Premier Cricket League Auction 2026', 2026, 'NOT_STARTED', 150.0, 0.0, 20, 20, 'all')
     `).run();
+  }
+
+  // Authoritative State Machine Migration: normalize legacy lowercase statuses
+  try {
+    db.exec(`
+      UPDATE auction_events SET status = 'NOT_STARTED' WHERE status IN ('not_started', 'NOT_STARTED');
+      UPDATE auction_events SET status = 'RANDOM_DRAW' WHERE status IN ('drawn', 'drawing', 'random_draw');
+      UPDATE auction_events SET status = 'PLAYER_READY' WHERE status IN ('player_ready');
+      UPDATE auction_events SET status = 'BIDDING' WHERE status IN ('bidding');
+      UPDATE auction_events SET status = 'BIDDING_PAUSED' WHERE status IN ('paused', 'bidding_paused');
+      UPDATE auction_events SET status = 'RESULT_COMPLETED' WHERE status IN ('sold', 'unsold', 'result_completed');
+      UPDATE auction_events SET status = 'AUCTION_COMPLETED' WHERE status IN ('completed', 'auction_completed');
+    `);
+  } catch (migErr) {
+    console.warn('Status migration note:', migErr);
   }
 
   // Ensure default seed data (accounts, teams, players) is loaded

@@ -22,18 +22,20 @@ export default function Navbar() {
   const isCaptain = user?.role === 'captain';
 
   const getStatusBadge = () => {
-    const s = state?.event?.status || 'not_started';
+    const s = state?.event?.status ? state.event.status.toUpperCase() : 'NOT_STARTED';
     switch (s) {
-      case 'bidding':
+      case 'BIDDING':
         return <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 animate-pulse"><span className="w-2 h-2 rounded-full bg-emerald-400"></span>LIVE BIDDING</span>;
-      case 'drawn':
-        return <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30"><span className="w-2 h-2 rounded-full bg-amber-400"></span>PLAYER DRAWN</span>;
-      case 'paused':
-        return <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">PAUSED</span>;
-      case 'sold':
-        return <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-500/20 text-blue-400 border border-blue-500/30">SOLD</span>;
-      case 'unsold':
-        return <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-500/20 text-rose-400 border border-rose-500/30">UNSOLD</span>;
+      case 'PLAYER_READY':
+        return <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30"><span className="w-2 h-2 rounded-full bg-amber-400"></span>PLAYER READY</span>;
+      case 'RANDOM_DRAW':
+        return <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-purple-500/20 text-purple-400 border border-purple-500/30"><span className="w-2 h-2 rounded-full bg-purple-400"></span>RANDOM DRAW</span>;
+      case 'BIDDING_PAUSED':
+        return <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">BIDDING PAUSED</span>;
+      case 'RESULT_COMPLETED':
+        return <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-500/20 text-blue-400 border border-blue-500/30">ROUND COMPLETED</span>;
+      case 'AUCTION_COMPLETED':
+        return <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-purple-500/20 text-purple-400 border border-purple-500/30">AUCTION COMPLETED</span>;
       default:
         return <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-700 text-slate-300">NOT STARTED</span>;
     }

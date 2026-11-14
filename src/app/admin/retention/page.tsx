@@ -21,7 +21,7 @@ export default function AdminRetentionPage() {
 
   const teams = state?.teams || [];
   const event = state?.event;
-  const isAuctionStarted = event && event.status !== 'not_started';
+  const isAuctionStarted = event && event.status.toUpperCase() !== 'NOT_STARTED';
 
   const fetchRetentionsAndPlayers = async () => {
     setLoading(true);

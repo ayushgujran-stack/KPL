@@ -1,5 +1,5 @@
 import { db } from './db';
-import { Team, Player, AuctionEvent, Bid, AuctionResult, User, AuditLog, TeamRetention } from '@/types';
+import { Team, Player, AuctionEvent, Bid, AuctionResult, User, AuditLog, TeamRetention, AuctionStatus, VALID_AUCTION_TRANSITIONS } from '@/types';
 import crypto from 'crypto';
 
 export interface AuctionStatePayload {
@@ -9,11 +9,35 @@ export interface AuctionStatePayload {
   teams: Team[];
   recentBids: (Bid & { team_name: string; team_color: string; team_code: string })[];
   recentResults: (AuctionResult & { player_name: string; player_role: string; team_name?: string; team_color?: string })[];
+  latestResult?: (AuctionResult & { player_name: string; team_name?: string; team_color?: string }) | null;
   totalPlayers: number;
   soldCount: number;
   unsoldCount: number;
   retainedCount: number;
   remainingPoolCount: number;
+}
+
+export function normalizeAuctionStatus(rawStatus?: string): AuctionStatus {
+  if (!rawStatus) return 'NOT_STARTED';
+  const upper = rawStatus.toUpperCase();
+  if (upper === 'DRAWN' || upper === 'DRAWING') return 'RANDOM_DRAW';
+  if (upper === 'PAUSED') return 'BIDDING_PAUSED';
+  if (upper === 'SOLD' || upper === 'UNSOLD') return 'RESULT_COMPLETED';
+  if (upper === 'COMPLETED') return 'AUCTION_COMPLETED';
+  if (Object.keys(VALID_AUCTION_TRANSITIONS).includes(upper)) {
+    return upper as AuctionStatus;
+  }
+  return 'NOT_STARTED';
+}
+
+export function validateAuctionTransition(currentStatus: AuctionStatus, newStatus: AuctionStatus) {
+  if (currentStatus === newStatus) return; // Idempotent same-state
+  const allowed = VALID_AUCTION_TRANSITIONS[currentStatus] || [];
+  if (!allowed.includes(newStatus)) {
+    throw new Error(
+      `Invalid auction state transition: Cannot transition from ${currentStatus} to ${newStatus}. Allowed next states: ${allowed.join(', ') || 'none'}`
+    );
+  }
 }
 
 export function logAudit(userId: string, userName: string, userRole: string, action: string, details: string) {
@@ -68,6 +92,9 @@ export function getTeamsWithBudgets(): Team[] {
 
 export function getAuctionState(): AuctionStatePayload {
   const event = db.prepare(`SELECT * FROM auction_events WHERE id = 'kpl-2026'`).get() as AuctionEvent;
+  if (event) {
+    event.status = normalizeAuctionStatus(event.status);
+  }
   const teams = getTeamsWithBudgets();
 
   let currentPlayer: Player | null = null;
@@ -101,6 +128,20 @@ export function getAuctionState(): AuctionStatePayload {
     LIMIT 10
   `).all() as any[];
 
+  // Latest result for current stage
+  let latestResult: any = null;
+  if (event && event.current_player_id) {
+    latestResult = db.prepare(`
+      SELECT r.*, t.name as team_name, t.primary_color as team_color, p.name as player_name
+      FROM auction_results r
+      LEFT JOIN teams t ON r.team_id = t.id
+      JOIN players p ON r.player_id = p.id
+      WHERE r.player_id = ?
+      ORDER BY r.created_at DESC
+      LIMIT 1
+    `).get(event.current_player_id) || null;
+  }
+
   // Counts
   const totalPlayersRow = db.prepare(`SELECT COUNT(*) as count FROM players WHERE is_active = 1`).get() as { count: number };
   const soldRow = db.prepare(`SELECT COUNT(DISTINCT player_id) as count FROM auction_results WHERE status = 'sold'`).get() as { count: number };
@@ -120,6 +161,7 @@ export function getAuctionState(): AuctionStatePayload {
     teams,
     recentBids,
     recentResults,
+    latestResult,
     totalPlayers,
     soldCount,
     unsoldCount,
@@ -129,10 +171,12 @@ export function getAuctionState(): AuctionStatePayload {
 }
 
 export function startRandomPlayerDraw(category: string, user: { id: string; name: string; role: string }) {
-  // Check that no bidding is currently in flight
   const event = db.prepare(`SELECT * FROM auction_events WHERE id = 'kpl-2026'`).get() as AuctionEvent;
-  if (event.status === 'bidding') {
-    throw new Error('Cannot start a new draw while live bidding is in progress! Close or pause bidding first.');
+  const currentStatus = normalizeAuctionStatus(event?.status);
+
+  // Authoritative State Check: Allow draw only from NOT_STARTED, RANDOM_DRAW, or RESULT_COMPLETED
+  if (['PLAYER_READY', 'BIDDING', 'BIDDING_PAUSED'].includes(currentStatus)) {
+    throw new Error(`Cannot start a new lottery draw while a player auction is active on the podium (Current Status: ${currentStatus}). Declare SOLD/UNSOLD and finish the round first.`);
   }
 
   let query = `
@@ -185,7 +229,7 @@ export function startRandomPlayerDraw(category: string, user: { id: string; name
 
   const drawId = crypto.randomUUID();
 
-  // Atomically update draw & event
+  // Atomically update draw & event: Status transitions to RANDOM_DRAW
   const tx = db.transaction(() => {
     db.prepare(`
       INSERT INTO random_draws (id, auction_event_id, player_id, draw_category, drawn_by_user_id, confirmed)
@@ -194,7 +238,7 @@ export function startRandomPlayerDraw(category: string, user: { id: string; name
 
     db.prepare(`
       UPDATE auction_events
-      SET status = 'drawn',
+      SET status = 'RANDOM_DRAW',
           current_player_id = ?,
           current_bid = ?,
           current_bid_team_id = NULL,
@@ -224,6 +268,10 @@ export function startRandomPlayerDraw(category: string, user: { id: string; name
 
 export function confirmPlayerForAuction(user: { id: string; name: string; role: string }) {
   const event = db.prepare(`SELECT * FROM auction_events WHERE id = 'kpl-2026'`).get() as AuctionEvent;
+  const currentStatus = normalizeAuctionStatus(event?.status);
+
+  validateAuctionTransition(currentStatus, 'PLAYER_READY');
+
   if (!event.current_player_id) {
     throw new Error('No player has been selected in the random draw yet!');
   }
@@ -231,21 +279,64 @@ export function confirmPlayerForAuction(user: { id: string; name: string; role: 
   const player = db.prepare(`SELECT * FROM players WHERE id = ?`).get(event.current_player_id) as Player;
 
   const tx = db.transaction(() => {
+    // 1. Mark random draw as confirmed
+    db.prepare(`
+      UPDATE random_draws
+      SET confirmed = 1
+      WHERE auction_event_id = 'kpl-2026' AND player_id = ?
+    `).run(player.id);
+
+    // 2. Mark player as in_auction
     db.prepare(`
       UPDATE players
       SET status = 'in_auction'
       WHERE id = ?
     `).run(player.id);
 
+    // 3. Move auction status to PLAYER_READY (Step 2 - podium display, countdown NOT ticking yet)
     db.prepare(`
       UPDATE auction_events
-      SET status = 'bidding',
+      SET status = 'PLAYER_READY',
           current_bid = ?,
           current_bid_team_id = NULL,
           bid_timer = timer_duration,
           updated_at = CURRENT_TIMESTAMP
       WHERE id = 'kpl-2026'
     `).run(player.base_price);
+
+    logAudit(
+      user.id,
+      user.name,
+      user.role,
+      'PLAYER_CONFIRMED',
+      `Player #${player.player_number} ${player.name} confirmed for live auction podium. Status: PLAYER_READY.`
+    );
+  });
+
+  tx();
+  return getAuctionState();
+}
+
+export function startBidding(user: { id: string; name: string; role: string }) {
+  const event = db.prepare(`SELECT * FROM auction_events WHERE id = 'kpl-2026'`).get() as AuctionEvent;
+  const currentStatus = normalizeAuctionStatus(event?.status);
+
+  validateAuctionTransition(currentStatus, 'BIDDING');
+
+  if (!event.current_player_id) {
+    throw new Error('No player has been confirmed on the auction podium!');
+  }
+
+  const player = db.prepare(`SELECT * FROM players WHERE id = ?`).get(event.current_player_id) as Player;
+
+  const tx = db.transaction(() => {
+    db.prepare(`
+      UPDATE auction_events
+      SET status = 'BIDDING',
+          bid_timer = timer_duration,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = 'kpl-2026'
+    `).run();
 
     logAudit(
       user.id,
@@ -263,8 +354,18 @@ export function confirmPlayerForAuction(user: { id: string; name: string; role: 
 export function placeBid(teamId: string, amount: number, user: { id: string; name: string; role: string; team_id?: string | null }) {
   const tx = db.transaction(() => {
     const event = db.prepare(`SELECT * FROM auction_events WHERE id = 'kpl-2026'`).get() as AuctionEvent;
-    if (event.status !== 'bidding') {
-      throw new Error(`Bidding is currently ${event.status.toUpperCase()}. Bids cannot be placed.`);
+    const currentStatus = normalizeAuctionStatus(event?.status);
+
+    if (currentStatus !== 'BIDDING') {
+      if (currentStatus === 'PLAYER_READY') {
+        throw new Error('Bidding has not started yet. Waiting for Organiser to click Start Bidding.');
+      } else if (currentStatus === 'BIDDING_PAUSED') {
+        throw new Error('Bidding is currently paused by the Organiser.');
+      } else if (currentStatus === 'RESULT_COMPLETED') {
+        throw new Error('Bidding for this player has ended.');
+      } else {
+        throw new Error(`Bidding is not open (Current Status: ${currentStatus}).`);
+      }
     }
 
     if (!event.current_player_id) {
@@ -347,6 +448,10 @@ export function placeBid(teamId: string, amount: number, user: { id: string; nam
 export function declareSold(user: { id: string; name: string; role: string }) {
   const tx = db.transaction(() => {
     const event = db.prepare(`SELECT * FROM auction_events WHERE id = 'kpl-2026'`).get() as AuctionEvent;
+    const currentStatus = normalizeAuctionStatus(event?.status);
+
+    validateAuctionTransition(currentStatus, 'RESULT_COMPLETED');
+
     if (!event.current_player_id) {
       throw new Error('No player currently in auction.');
     }
@@ -374,10 +479,10 @@ export function declareSold(user: { id: string; name: string; role: string }) {
       VALUES (?, 'kpl-2026', ?, ?, ?, 'sold', ?)
     `).run(resultId, player.id, team.id, event.current_bid, user.name);
 
-    // 3. Update auction event state
+    // 3. Move auction status to RESULT_COMPLETED (stays stable on podium)
     db.prepare(`
       UPDATE auction_events
-      SET status = 'sold',
+      SET status = 'RESULT_COMPLETED',
           updated_at = CURRENT_TIMESTAMP
       WHERE id = 'kpl-2026'
     `).run();
@@ -398,6 +503,10 @@ export function declareSold(user: { id: string; name: string; role: string }) {
 export function declareUnsold(user: { id: string; name: string; role: string }) {
   const tx = db.transaction(() => {
     const event = db.prepare(`SELECT * FROM auction_events WHERE id = 'kpl-2026'`).get() as AuctionEvent;
+    const currentStatus = normalizeAuctionStatus(event?.status);
+
+    validateAuctionTransition(currentStatus, 'RESULT_COMPLETED');
+
     if (!event.current_player_id) {
       throw new Error('No player currently in auction.');
     }
@@ -420,10 +529,10 @@ export function declareUnsold(user: { id: string; name: string; role: string }) 
       VALUES (?, 'kpl-2026', ?, NULL, 0, 'unsold', ?)
     `).run(resultId, player.id, user.name);
 
-    // 3. Update auction event state
+    // 3. Move auction status to RESULT_COMPLETED
     db.prepare(`
       UPDATE auction_events
-      SET status = 'unsold',
+      SET status = 'RESULT_COMPLETED',
           current_bid_team_id = NULL,
           updated_at = CURRENT_TIMESTAMP
       WHERE id = 'kpl-2026'
@@ -435,6 +544,38 @@ export function declareUnsold(user: { id: string; name: string; role: string }) 
       user.role,
       'PLAYER_UNSOLD',
       `UNSOLD: Player ${player.name} declared unsold at base price ${player.base_price} pts.`
+    );
+  });
+
+  tx();
+  return getAuctionState();
+}
+
+export function nextRandomDraw(user: { id: string; name: string; role: string }) {
+  const tx = db.transaction(() => {
+    const event = db.prepare(`SELECT * FROM auction_events WHERE id = 'kpl-2026'`).get() as AuctionEvent;
+    const currentStatus = normalizeAuctionStatus(event?.status);
+
+    validateAuctionTransition(currentStatus, 'RANDOM_DRAW');
+
+    // Step 5: Organiser manually clears completed auction and moves to RANDOM_DRAW
+    db.prepare(`
+      UPDATE auction_events
+      SET status = 'RANDOM_DRAW',
+          current_player_id = NULL,
+          current_bid = 0.0,
+          current_bid_team_id = NULL,
+          bid_timer = timer_duration,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = 'kpl-2026'
+    `).run();
+
+    logAudit(
+      user.id,
+      user.name,
+      user.role,
+      'NEXT_RANDOM_DRAW',
+      `Podium cleared. Transitioned auction to RANDOM_DRAW for next player draw.`
     );
   });
 
@@ -469,20 +610,28 @@ export function reintroducePlayer(playerId: string, user: { id: string; name: st
 }
 
 export function controlAuction(
-  action: 'pause' | 'resume' | 'reset_timer' | 'set_timer_duration',
+  action: 'pause' | 'resume' | 'reset_timer' | 'set_timer_duration' | 'start_bidding' | 'next_random_draw',
   payload: any,
   user: { id: string; name: string; role: string }
 ) {
+  if (action === 'start_bidding') {
+    return startBidding(user);
+  }
+  if (action === 'next_random_draw') {
+    return nextRandomDraw(user);
+  }
+
   const tx = db.transaction(() => {
     const event = db.prepare(`SELECT * FROM auction_events WHERE id = 'kpl-2026'`).get() as AuctionEvent;
+    const currentStatus = normalizeAuctionStatus(event?.status);
 
     if (action === 'pause') {
-      if (event.status !== 'bidding') throw new Error('Auction is not currently in live bidding.');
-      db.prepare(`UPDATE auction_events SET status = 'paused', updated_at = CURRENT_TIMESTAMP WHERE id = 'kpl-2026'`).run();
+      validateAuctionTransition(currentStatus, 'BIDDING_PAUSED');
+      db.prepare(`UPDATE auction_events SET status = 'BIDDING_PAUSED', updated_at = CURRENT_TIMESTAMP WHERE id = 'kpl-2026'`).run();
       logAudit(user.id, user.name, user.role, 'AUCTION_PAUSED', 'Live bidding was paused by organiser.');
     } else if (action === 'resume') {
-      if (event.status !== 'paused') throw new Error('Auction is not currently paused.');
-      db.prepare(`UPDATE auction_events SET status = 'bidding', updated_at = CURRENT_TIMESTAMP WHERE id = 'kpl-2026'`).run();
+      validateAuctionTransition(currentStatus, 'BIDDING');
+      db.prepare(`UPDATE auction_events SET status = 'BIDDING', updated_at = CURRENT_TIMESTAMP WHERE id = 'kpl-2026'`).run();
       logAudit(user.id, user.name, user.role, 'AUCTION_RESUMED', 'Live bidding resumed by organiser.');
     } else if (action === 'reset_timer') {
       db.prepare(`UPDATE auction_events SET bid_timer = timer_duration, updated_at = CURRENT_TIMESTAMP WHERE id = 'kpl-2026'`).run();
@@ -507,7 +656,7 @@ export function controlAuction(
 export function addRetention(teamId: string, playerId: string, points: number, user: { id: string; name: string; role: string }) {
   const tx = db.transaction(() => {
     const event = db.prepare(`SELECT status FROM auction_events WHERE id = 'kpl-2026'`).get() as { status: string };
-    if (event.status !== 'not_started') {
+    if (normalizeAuctionStatus(event?.status) !== 'NOT_STARTED') {
       throw new Error('Retention is locked! Auction has already started or been initialized.');
     }
 
@@ -561,7 +710,7 @@ export function addRetention(teamId: string, playerId: string, points: number, u
 export function removeRetention(retentionId: string, user: { id: string; name: string; role: string }) {
   const tx = db.transaction(() => {
     const event = db.prepare(`SELECT status FROM auction_events WHERE id = 'kpl-2026'`).get() as { status: string };
-    if (event.status !== 'not_started') {
+    if (normalizeAuctionStatus(event?.status) !== 'NOT_STARTED') {
       throw new Error('Retention is locked while auction is active.');
     }
 
@@ -606,7 +755,7 @@ export function clearTransactionData(confirmationPhrase: string, user: { id: str
 
   const tx = db.transaction(() => {
     const event = db.prepare(`SELECT status FROM auction_events WHERE id = 'kpl-2026'`).get() as { status: string };
-    if (event.status === 'bidding') {
+    if (normalizeAuctionStatus(event?.status) === 'BIDDING') {
       throw new Error('Cannot clear transactions while live bidding is active. Pause or close the auction first.');
     }
 
@@ -636,7 +785,7 @@ export function clearTransactionData(confirmationPhrase: string, user: { id: str
     // 5. Reset auction event
     db.prepare(`
       UPDATE auction_events
-      SET status = 'not_started',
+      SET status = 'NOT_STARTED',
           current_player_id = NULL,
           current_bid = 0.0,
           current_bid_team_id = NULL,
@@ -669,7 +818,7 @@ export function resetCompleteAuction(keepRetention: boolean, confirmationPhrase:
 
   const tx = db.transaction(() => {
     const event = db.prepare(`SELECT status FROM auction_events WHERE id = 'kpl-2026'`).get() as { status: string };
-    if (event.status === 'bidding') {
+    if (normalizeAuctionStatus(event?.status) === 'BIDDING') {
       throw new Error('Cannot reset complete auction while bidding is active.');
     }
 
@@ -697,7 +846,7 @@ export function resetCompleteAuction(keepRetention: boolean, confirmationPhrase:
 
     db.prepare(`
       UPDATE auction_events
-      SET status = 'not_started',
+      SET status = 'NOT_STARTED',
           current_player_id = NULL,
           current_bid = 0.0,
           current_bid_team_id = NULL,
@@ -735,7 +884,7 @@ export function clearMasterData(
   const tx = db.transaction(() => {
     // Stop if auction in bidding
     const event = db.prepare(`SELECT status FROM auction_events WHERE id = 'kpl-2026'`).get() as { status: string };
-    if (event.status === 'bidding') {
+    if (normalizeAuctionStatus(event?.status) === 'BIDDING') {
       throw new Error('Cannot clear master records while auction is active.');
     }
 

@@ -58,7 +58,24 @@ export interface TeamRetention {
   team?: Team;
 }
 
-export type AuctionStatus = 'not_started' | 'drawing' | 'drawn' | 'bidding' | 'paused' | 'sold' | 'unsold' | 'completed';
+export type AuctionStatus =
+  | 'NOT_STARTED'
+  | 'RANDOM_DRAW'
+  | 'PLAYER_READY'
+  | 'BIDDING'
+  | 'BIDDING_PAUSED'
+  | 'RESULT_COMPLETED'
+  | 'AUCTION_COMPLETED';
+
+export const VALID_AUCTION_TRANSITIONS: Record<AuctionStatus, AuctionStatus[]> = {
+  NOT_STARTED: ['RANDOM_DRAW'],
+  RANDOM_DRAW: ['PLAYER_READY'],
+  PLAYER_READY: ['BIDDING'],
+  BIDDING: ['BIDDING_PAUSED', 'RESULT_COMPLETED'],
+  BIDDING_PAUSED: ['BIDDING', 'RESULT_COMPLETED'],
+  RESULT_COMPLETED: ['RANDOM_DRAW', 'AUCTION_COMPLETED'],
+  AUCTION_COMPLETED: ['RANDOM_DRAW'],
+};
 
 export interface AuctionEvent {
   id: string;

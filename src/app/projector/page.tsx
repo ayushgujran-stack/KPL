@@ -11,6 +11,8 @@ export default function ProjectorDisplayPage() {
   const currentBidTeam = state?.currentBidTeam;
   const teams = state?.teams || [];
 
+  const status = event?.status ? event.status.toUpperCase() : 'NOT_STARTED';
+
   const [secondsLeft, setSecondsLeft] = useState<number>(event?.bid_timer ?? 20);
 
   useEffect(() => {
@@ -20,12 +22,12 @@ export default function ProjectorDisplayPage() {
   }, [event?.bid_timer, event?.updated_at]);
 
   useEffect(() => {
-    if (event?.status !== 'bidding') return;
+    if (status !== 'BIDDING') return;
     const interval = setInterval(() => {
       setSecondsLeft((prev) => (prev > 0 ? prev - 1 : 0));
     }, 1000);
     return () => clearInterval(interval);
-  }, [event?.status]);
+  }, [status]);
 
   const currentBidAmount = event?.current_bid || (player?.base_price ?? 0);
 
@@ -57,9 +59,9 @@ export default function ProjectorDisplayPage() {
           </div>
 
           <div className="flex items-center gap-3 bg-slate-900/90 border border-slate-700/80 px-5 py-2.5 rounded-2xl">
-            <Clock className={`w-6 h-6 ${secondsLeft <= 5 && event?.status === 'bidding' ? 'text-rose-400 animate-pulse' : 'text-amber-400'}`} />
+            <Clock className={`w-6 h-6 ${secondsLeft <= 5 && status === 'BIDDING' ? 'text-rose-400 animate-pulse' : 'text-amber-400'}`} />
             <span className="text-2xl sm:text-3xl font-black font-mono tracking-tight">
-              {secondsLeft}s
+              {status === 'BIDDING' ? `${secondsLeft}s` : status === 'BIDDING_PAUSED' ? 'PAUSED' : `${event?.timer_duration ?? 20}s`}
             </span>
           </div>
         </div>
@@ -83,8 +85,22 @@ export default function ProjectorDisplayPage() {
                     {player.gender}
                   </span>
                 </div>
-                <div className="text-lg font-mono font-bold text-slate-400">
-                  #{player.player_number}
+                <div className="flex items-center gap-3">
+                  <span className={`px-3.5 py-1 rounded-full text-xs font-black uppercase tracking-wider ${
+                    status === 'PLAYER_READY' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' :
+                    status === 'BIDDING' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 animate-pulse' :
+                    status === 'BIDDING_PAUSED' ? 'bg-yellow-500/20 text-yellow-300 border border-yellow-500/30' :
+                    status === 'RESULT_COMPLETED' ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30' :
+                    'bg-slate-800 text-slate-300'
+                  }`}>
+                    {status === 'PLAYER_READY' ? 'PLAYER READY' :
+                     status === 'BIDDING' ? 'LIVE BIDDING' :
+                     status === 'BIDDING_PAUSED' ? 'PAUSED' :
+                     status === 'RESULT_COMPLETED' ? 'ROUND COMPLETED' : status}
+                  </span>
+                  <div className="text-lg font-mono font-bold text-slate-400">
+                    #{player.player_number}
+                  </div>
                 </div>
               </div>
 

@@ -33,7 +33,8 @@ export default function CaptainDashboardPage() {
   const femaleCount = teamSquad.filter((p) => p.gender === 'Female').length;
 
   const event = state?.event;
-  const isBiddingActive = event?.status === 'bidding';
+  const currentStatus = event?.status ? event.status.toUpperCase() : 'NOT_STARTED';
+  const isBiddingActive = currentStatus === 'BIDDING';
   const isHighestBidder = event?.current_bid_team_id === myTeam?.id;
 
   return (

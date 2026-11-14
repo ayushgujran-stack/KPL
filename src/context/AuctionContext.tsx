@@ -13,10 +13,12 @@ interface AuctionContextType {
   placeBid: (teamId: string, amount: number) => Promise<{ success: boolean; error?: string }>;
   startDraw: (category: string) => Promise<any>;
   confirmDraw: () => Promise<{ success: boolean; error?: string }>;
+  startBidding: () => Promise<{ success: boolean; error?: string }>;
   declareSold: () => Promise<{ success: boolean; error?: string }>;
   declareUnsold: () => Promise<{ success: boolean; error?: string }>;
+  nextRandomDraw: () => Promise<{ success: boolean; error?: string }>;
   reintroducePlayer: (playerId: string) => Promise<{ success: boolean; error?: string }>;
-  controlAuction: (action: 'pause' | 'resume' | 'reset_timer' | 'set_timer_duration', payload?: any) => Promise<{ success: boolean; error?: string }>;
+  controlAuction: (action: 'pause' | 'resume' | 'reset_timer' | 'set_timer_duration' | 'start_bidding' | 'next_random_draw', payload?: any) => Promise<{ success: boolean; error?: string }>;
 }
 
 const AuctionContext = createContext<AuctionContextType>({
@@ -28,8 +30,10 @@ const AuctionContext = createContext<AuctionContextType>({
   placeBid: async () => ({ success: false }),
   startDraw: async () => ({}),
   confirmDraw: async () => ({ success: false }),
+  startBidding: async () => ({ success: false }),
   declareSold: async () => ({ success: false }),
   declareUnsold: async () => ({ success: false }),
+  nextRandomDraw: async () => ({ success: false }),
   reintroducePlayer: async () => ({ success: false }),
   controlAuction: async () => ({ success: false }),
 });
@@ -39,29 +43,47 @@ export function AuctionProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastBidId, setLastBidId] = useState<string | null>(null);
-  const prevSoldStatusRef = useRef<string>('not_started');
+  const prevSoldStatusRef = useRef<string>('NOT_STARTED');
+  const lastStateDigestRef = useRef<string>('');
+
+  const applyStateIfChanged = useCallback((newState: AuctionStatePayload) => {
+    if (!newState || !newState.event) return;
+
+    // Fast state digest to prevent duplicate React re-renders and screen flickering
+    const digest = `${newState.event.id}_${newState.event.status}_${newState.event.current_player_id}_${newState.event.current_bid}_${newState.event.current_bid_team_id}_${newState.event.bid_timer}_${newState.event.updated_at}_${newState.recentBids?.[0]?.id}_${newState.soldCount}_${newState.unsoldCount}`;
+    if (digest === lastStateDigestRef.current) {
+      return; // No state change - prevent unneeded re-rendering
+    }
+    lastStateDigestRef.current = digest;
+
+    setState(newState);
+
+    const isSoldNow = newState.event.status === 'RESULT_COMPLETED' && newState.latestResult?.status === 'sold';
+    const wasSoldBefore = prevSoldStatusRef.current === 'RESULT_COMPLETED';
+
+    if (isSoldNow && !wasSoldBefore) {
+      try {
+        confetti({
+          particleCount: 130,
+          spread: 80,
+          origin: { y: 0.6 },
+          colors: ['#f59e0b', '#3b82f6', '#10b981', '#ef4444', '#8b5cf6'],
+        });
+      } catch {}
+    }
+    prevSoldStatusRef.current = newState.event.status;
+
+    if (newState.recentBids && newState.recentBids.length > 0) {
+      setLastBidId(newState.recentBids[0].id);
+    }
+  }, []);
 
   const refreshState = useCallback(async () => {
     try {
       const res = await fetch('/api/auction/state');
       if (res.ok) {
         const data: AuctionStatePayload = await res.json();
-        setState(data);
-
-        // Check if recently sold to trigger celebration
-        if (data.event?.status === 'sold' && prevSoldStatusRef.current !== 'sold') {
-          confetti({
-            particleCount: 120,
-            spread: 80,
-            origin: { y: 0.6 },
-            colors: ['#f59e0b', '#3b82f6', '#10b981', '#ef4444', '#8b5cf6'],
-          });
-        }
-        prevSoldStatusRef.current = data.event?.status || 'not_started';
-
-        if (data.recentBids && data.recentBids.length > 0) {
-          setLastBidId(data.recentBids[0].id);
-        }
+        applyStateIfChanged(data);
         setError(null);
       }
     } catch (err: any) {
@@ -69,55 +91,67 @@ export function AuctionProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [applyStateIfChanged]);
 
-  // Initial fetch and SSE stream setup
+  // Real-time synchronization with SSE and fallback
   useEffect(() => {
+    let isUnmounted = false;
+    let eventSource: EventSource | null = null;
+    let pollInterval: NodeJS.Timeout | null = null;
+    let isSseConnected = false;
+
+    // Initial state fetch
     refreshState();
 
-    let eventSource: EventSource | null = null;
+    const startPollingFallback = () => {
+      if (pollInterval || isUnmounted) return;
+      pollInterval = setInterval(() => {
+        if (!isSseConnected && !isUnmounted) {
+          refreshState();
+        }
+      }, 3000);
+    };
+
     try {
       eventSource = new EventSource('/api/auction/stream');
+
+      eventSource.onopen = () => {
+        isSseConnected = true;
+        if (pollInterval) {
+          clearInterval(pollInterval);
+          pollInterval = null;
+        }
+      };
+
       eventSource.onmessage = (event) => {
+        if (isUnmounted) return;
+        isSseConnected = true;
         try {
           const newState: AuctionStatePayload = JSON.parse(event.data);
-          setState(newState);
-
-          if (newState.event?.status === 'sold' && prevSoldStatusRef.current !== 'sold') {
-            confetti({
-              particleCount: 150,
-              spread: 90,
-              origin: { y: 0.6 },
-              colors: ['#f59e0b', '#3b82f6', '#10b981', '#ef4444', '#8b5cf6'],
-            });
-          }
-          prevSoldStatusRef.current = newState.event?.status || 'not_started';
-
-          if (newState.recentBids && newState.recentBids.length > 0) {
-            setLastBidId(newState.recentBids[0].id);
-          }
+          applyStateIfChanged(newState);
         } catch {
-          // parse error
+          // ignore parse error
         }
       };
 
       eventSource.onerror = () => {
-        // SSE disconnected or errored, fallback polling remains active
+        isSseConnected = false;
+        startPollingFallback();
       };
     } catch {
-      // SSE not supported
+      startPollingFallback();
     }
 
-    // Polling fallback to guarantee 100% sync
-    const pollInterval = setInterval(() => {
-      refreshState();
-    }, 2500);
-
     return () => {
-      if (eventSource) eventSource.close();
-      clearInterval(pollInterval);
+      isUnmounted = true;
+      if (eventSource) {
+        eventSource.close();
+      }
+      if (pollInterval) {
+        clearInterval(pollInterval);
+      }
     };
-  }, [refreshState]);
+  }, [refreshState, applyStateIfChanged]);
 
   const placeBid = async (teamId: string, amount: number) => {
     try {
@@ -130,7 +164,7 @@ export function AuctionProvider({ children }: { children: React.ReactNode }) {
       if (!res.ok) {
         return { success: false, error: data.error || 'Bid rejected' };
       }
-      setState(data);
+      applyStateIfChanged(data);
       return { success: true };
     } catch (err: any) {
       return { success: false, error: err.message };
@@ -156,7 +190,19 @@ export function AuctionProvider({ children }: { children: React.ReactNode }) {
       const res = await fetch('/api/auction/confirm-draw', { method: 'POST' });
       const data = await res.json();
       if (!res.ok) return { success: false, error: data.error };
-      setState(data);
+      applyStateIfChanged(data);
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  };
+
+  const startBidding = async () => {
+    try {
+      const res = await fetch('/api/auction/start-bidding', { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) return { success: false, error: data.error };
+      applyStateIfChanged(data);
       return { success: true };
     } catch (err: any) {
       return { success: false, error: err.message };
@@ -168,7 +214,7 @@ export function AuctionProvider({ children }: { children: React.ReactNode }) {
       const res = await fetch('/api/auction/sold', { method: 'POST' });
       const data = await res.json();
       if (!res.ok) return { success: false, error: data.error };
-      setState(data);
+      applyStateIfChanged(data);
       return { success: true };
     } catch (err: any) {
       return { success: false, error: err.message };
@@ -180,7 +226,19 @@ export function AuctionProvider({ children }: { children: React.ReactNode }) {
       const res = await fetch('/api/auction/unsold', { method: 'POST' });
       const data = await res.json();
       if (!res.ok) return { success: false, error: data.error };
-      setState(data);
+      applyStateIfChanged(data);
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  };
+
+  const nextRandomDraw = async () => {
+    try {
+      const res = await fetch('/api/auction/next-draw', { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) return { success: false, error: data.error };
+      applyStateIfChanged(data);
       return { success: true };
     } catch (err: any) {
       return { success: false, error: err.message };
@@ -196,14 +254,17 @@ export function AuctionProvider({ children }: { children: React.ReactNode }) {
       });
       const data = await res.json();
       if (!res.ok) return { success: false, error: data.error };
-      setState(data);
+      applyStateIfChanged(data);
       return { success: true };
     } catch (err: any) {
       return { success: false, error: err.message };
     }
   };
 
-  const controlAuction = async (action: 'pause' | 'resume' | 'reset_timer' | 'set_timer_duration', payload?: any) => {
+  const controlAuction = async (
+    action: 'pause' | 'resume' | 'reset_timer' | 'set_timer_duration' | 'start_bidding' | 'next_random_draw',
+    payload?: any
+  ) => {
     try {
       const res = await fetch('/api/auction/control', {
         method: 'POST',
@@ -212,7 +273,7 @@ export function AuctionProvider({ children }: { children: React.ReactNode }) {
       });
       const data = await res.json();
       if (!res.ok) return { success: false, error: data.error };
-      setState(data);
+      applyStateIfChanged(data);
       return { success: true };
     } catch (err: any) {
       return { success: false, error: err.message };
@@ -230,8 +291,10 @@ export function AuctionProvider({ children }: { children: React.ReactNode }) {
         placeBid,
         startDraw,
         confirmDraw,
+        startBidding,
         declareSold,
         declareUnsold,
+        nextRandomDraw,
         reintroducePlayer,
         controlAuction,
       }}
