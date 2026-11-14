@@ -182,6 +182,17 @@ export function initDatabase() {
       record_counts TEXT NOT NULL,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
+
+    CREATE TABLE IF NOT EXISTS uploaded_media (
+      id TEXT PRIMARY KEY,
+      filename TEXT UNIQUE NOT NULL,
+      mime_type TEXT NOT NULL,
+      data BLOB NOT NULL,
+      size INTEGER NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_uploaded_media_filename ON uploaded_media(filename);
   `);
 
   // Ensure default auction event exists

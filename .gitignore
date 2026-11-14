@@ -54,6 +54,11 @@ data/*.db-shm
 *.sqlite
 *.sqlite3
 
+# uploads
+public/uploads/*
+!public/uploads/.gitkeep
+!public/uploads/players/.gitkeep
+
 # backups & generated reports
 backup_*.json
 KPL_*.xlsx

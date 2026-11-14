@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getCurrentUser } from '@/lib/auth';
 import { logAudit } from '@/lib/auction-service';
+import { DEFAULT_PLAYER_AVATAR } from '@/lib/image-utils';
 import crypto from 'crypto';
 
 export async function GET(req: Request) {
@@ -80,7 +81,7 @@ export async function POST(req: Request) {
             id,
             number,
             p.name,
-            p.photo_url || 'https://images.unsplash.com/photo-1540747913346-19e32dc3e97e?w=400&h=400&fit=crop&q=80',
+            p.photo_url || DEFAULT_PLAYER_AVATAR,
             p.gender || 'Male',
             p.age ? Number(p.age) : null,
             p.role || 'All-rounder',
@@ -122,7 +123,7 @@ export async function POST(req: Request) {
       id,
       finalNumber,
       name,
-      photo_url || 'https://images.unsplash.com/photo-1540747913346-19e32dc3e97e?w=400&h=400&fit=crop&q=80',
+      photo_url || DEFAULT_PLAYER_AVATAR,
       gender || 'Male',
       age ? Number(age) : null,
       role,

@@ -112,8 +112,11 @@ export default function ProjectorDisplayPage() {
               <div className="flex flex-col sm:flex-row items-center gap-8 my-6">
                 <div className="w-56 h-56 sm:w-64 sm:h-64 rounded-3xl overflow-hidden border-4 border-[#F5B942]/50 shadow-2xl bg-[#182438] shrink-0">
                   <img
-                    src={player.photo_url}
+                    src={player.photo_url || '/default-player-avatar.svg'}
                     alt={player.name}
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src = '/default-player-avatar.svg';
+                    }}
                     className="w-full h-full object-cover"
                   />
                 </div>

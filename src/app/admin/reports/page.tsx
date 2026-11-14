@@ -208,7 +208,17 @@ export default function AdminReportsPage() {
                 <tbody className="divide-y divide-[#334155]/60">
                   {retainedPlayers.map((p: any) => (
                     <tr key={p.id} className="hover:bg-[#182438]/50 transition">
-                      <td className="py-3 px-3.5 font-bold text-white">{p.name}</td>
+                      <td className="py-3 px-3.5">
+                        <div className="flex items-center gap-2.5">
+                          <img
+                            src={p.photo_url || '/default-player-avatar.svg'}
+                            alt={p.name}
+                            onError={(e) => { (e.target as HTMLImageElement).src = '/default-player-avatar.svg'; }}
+                            className="w-8 h-8 rounded-lg object-cover border border-[#334155] shrink-0 bg-[#182438]"
+                          />
+                          <span className="font-bold text-white">{p.name}</span>
+                        </div>
+                      </td>
                       <td className="py-3 px-3.5 text-[#CBD5E1]">{p.gender}</td>
                       <td className="py-3 px-3.5 text-[#60a5fa] font-semibold">{p.role}</td>
                       <td className="py-3 px-3.5">
@@ -249,7 +259,17 @@ export default function AdminReportsPage() {
               <tbody className="divide-y divide-[#334155]/60">
                 {soldPlayers.map((p: any) => (
                   <tr key={p.id} className="hover:bg-[#182438]/50 transition">
-                    <td className="py-3 px-4 font-bold text-white">{p.name}</td>
+                    <td className="py-3 px-4">
+                      <div className="flex items-center gap-2.5">
+                        <img
+                          src={p.photo_url || '/default-player-avatar.svg'}
+                          alt={p.name}
+                          onError={(e) => { (e.target as HTMLImageElement).src = '/default-player-avatar.svg'; }}
+                          className="w-8 h-8 rounded-lg object-cover border border-[#334155] shrink-0 bg-[#182438]"
+                        />
+                        <span className="font-bold text-white">{p.name}</span>
+                      </div>
+                    </td>
                     <td className="py-3 px-4 text-[#60a5fa] font-semibold">{p.role}</td>
                     <td className="py-3 px-4 text-[#F5B942] font-black">{p.category}</td>
                     <td className="py-3 px-4 font-mono font-bold text-[#CBD5E1]">{p.base_price} pts</td>
@@ -291,7 +311,17 @@ export default function AdminReportsPage() {
                 {unsoldPlayers.map((p: any) => (
                   <tr key={p.id} className="hover:bg-[#182438]/50 transition">
                     <td className="py-3 px-4 font-mono text-[#94A3B8]">#{p.player_number}</td>
-                    <td className="py-3 px-4 font-bold text-white">{p.name}</td>
+                    <td className="py-3 px-4">
+                      <div className="flex items-center gap-2.5">
+                        <img
+                          src={p.photo_url || '/default-player-avatar.svg'}
+                          alt={p.name}
+                          onError={(e) => { (e.target as HTMLImageElement).src = '/default-player-avatar.svg'; }}
+                          className="w-8 h-8 rounded-lg object-cover border border-[#334155] shrink-0 bg-[#182438]"
+                        />
+                        <span className="font-bold text-white">{p.name}</span>
+                      </div>
+                    </td>
                     <td className="py-3 px-4 text-[#CBD5E1]">{p.gender}</td>
                     <td className="py-3 px-4 text-[#60a5fa] font-semibold">{p.role}</td>
                     <td className="py-3 px-4 text-[#F5B942] font-black">{p.category}</td>

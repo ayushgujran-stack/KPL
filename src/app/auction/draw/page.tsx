@@ -183,8 +183,11 @@ export default function RandomDrawPage() {
             )}
 
             <img
-              src={activeDrawnPlayer ? activeDrawnPlayer.photo_url : animatingPhoto}
+              src={(activeDrawnPlayer ? activeDrawnPlayer.photo_url : animatingPhoto) || '/default-player-avatar.svg'}
               alt="Player Spotlight"
+              onError={(e) => {
+                (e.target as HTMLImageElement).src = '/default-player-avatar.svg';
+              }}
               className={`w-full h-full object-cover transition-all duration-300 ${
                 isDrawing ? 'scale-110 blur-[1px]' : 'scale-100'
               }`}

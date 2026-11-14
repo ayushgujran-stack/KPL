@@ -227,9 +227,12 @@ export default function AdminRetentionPage() {
                   >
                     <div className="flex items-center gap-3">
                       <img
-                        src={r.photo_url}
+                        src={r.photo_url || '/default-player-avatar.svg'}
                         alt={r.player_name}
-                        className="w-12 h-12 rounded-xl object-cover border border-[#334155] shrink-0"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = '/default-player-avatar.svg';
+                        }}
+                        className="w-12 h-12 rounded-xl object-cover border border-[#334155] shrink-0 bg-[#182438]"
                       />
                       <div>
                         <div className="font-bold text-white text-sm">{r.player_name}</div>

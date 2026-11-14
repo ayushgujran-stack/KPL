@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Player, Gender, PlayingRole } from '@/types';
 import { useAuction } from '@/context/AuctionContext';
-import { Plus, Upload, Download, Search, Trash2, Edit2, X } from 'lucide-react';
+import { Plus, Upload, Download, Search, Trash2, Edit2, X, Camera, Image as ImageIcon } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import { validateImageFile, compressPlayerPhoto, DEFAULT_PLAYER_AVATAR } from '@/lib/image-utils';
 
 export default function AdminPlayersPage() {
   const { refreshState } = useAuction();
@@ -29,6 +30,13 @@ export default function AdminPlayersPage() {
   const [category, setCategory] = useState('Category A');
   const [basePrice, setBasePrice] = useState('10');
   const [contact, setContact] = useState('');
+
+  // Local Image Upload States
+  const [photoPreview, setPhotoPreview] = useState('');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [photoError, setPhotoError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchPlayers = async () => {
     setLoading(true);
@@ -56,7 +64,10 @@ export default function AdminPlayersPage() {
     setEditingPlayer(p);
     setName(p.name);
     setPlayerNumber(p.player_number);
-    setPhotoUrl(p.photo_url);
+    setPhotoUrl(p.photo_url || DEFAULT_PLAYER_AVATAR);
+    setPhotoPreview(p.photo_url || DEFAULT_PLAYER_AVATAR);
+    setSelectedFile(null);
+    setPhotoError(null);
     setGender(p.gender);
     setAge(p.age ? String(p.age) : '');
     setRole(p.role);
@@ -66,23 +77,82 @@ export default function AdminPlayersPage() {
     setShowAddModal(true);
   };
 
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setPhotoError(null);
+
+    const validation = validateImageFile(file);
+    if (!validation.valid) {
+      setPhotoError(validation.error || 'Invalid image file.');
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+
+    try {
+      setUploadingPhoto(true);
+      const compressed = await compressPlayerPhoto(file, 800, 0.88);
+      setSelectedFile(compressed.file);
+      setPhotoPreview(compressed.dataUrl);
+    } catch (err: any) {
+      setPhotoError('Image processing error: ' + (err.message || 'Could not process photo'));
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
+
+  const handleRemovePhoto = () => {
+    setSelectedFile(null);
+    setPhotoPreview(DEFAULT_PLAYER_AVATAR);
+    setPhotoUrl(DEFAULT_PLAYER_AVATAR);
+    setPhotoError(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
   const handleSavePlayer = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-
-    const payload = {
-      name,
-      player_number: playerNumber,
-      photo_url: photoUrl || 'https://images.unsplash.com/photo-1540747913346-19e32dc3e97e?w=400&h=400&fit=crop&q=80',
-      gender,
-      age: age ? Number(age) : null,
-      role,
-      category,
-      base_price: Number(basePrice) || 10,
-      contact,
-    };
+    setPhotoError(null);
 
     try {
+      let finalPhoto = photoUrl;
+
+      // If user selected a local computer photo, upload it to backend storage first
+      if (selectedFile) {
+        setUploadingPhoto(true);
+        const formData = new FormData();
+        formData.append('file', selectedFile);
+
+        const uploadRes = await fetch('/api/upload', {
+          method: 'POST',
+          body: formData,
+        });
+
+        const uploadData = await uploadRes.json();
+        if (!uploadRes.ok) {
+          throw new Error(uploadData.error || 'Failed to upload photo to storage.');
+        }
+
+        finalPhoto = uploadData.url;
+      }
+
+      if (!finalPhoto || finalPhoto === '') {
+        finalPhoto = DEFAULT_PLAYER_AVATAR;
+      }
+
+      const payload = {
+        name,
+        player_number: playerNumber,
+        photo_url: finalPhoto,
+        gender,
+        age: age ? Number(age) : null,
+        role,
+        category,
+        base_price: Number(basePrice) || 10,
+        contact,
+      };
+
       if (editingPlayer) {
         const res = await fetch(`/api/players/${editingPlayer.id}`, {
           method: 'PUT',
@@ -103,10 +173,14 @@ export default function AdminPlayersPage() {
 
       setEditingPlayer(null);
       setShowAddModal(false);
+      setSelectedFile(null);
+      setPhotoPreview('');
       await fetchPlayers();
       await refreshState();
     } catch (err: any) {
       setError(err.message);
+    } finally {
+      setUploadingPhoto(false);
     }
   };
 
@@ -218,7 +292,10 @@ export default function AdminPlayersPage() {
               setEditingPlayer(null);
               setName('');
               setPlayerNumber(`PLY-${String(Date.now()).slice(-3)}`);
-              setPhotoUrl('https://images.unsplash.com/photo-1540747913346-19e32dc3e97e?w=400&h=400&fit=crop&q=80');
+              setPhotoUrl(DEFAULT_PLAYER_AVATAR);
+              setPhotoPreview('');
+              setSelectedFile(null);
+              setPhotoError(null);
               setGender('Male');
               setAge('25');
               setRole('All-rounder');
@@ -305,9 +382,10 @@ export default function AdminPlayersPage() {
                     <td className="py-3.5 px-4">
                       <div className="flex items-center gap-3">
                         <img
-                          src={p.photo_url}
+                          src={p.photo_url || DEFAULT_PLAYER_AVATAR}
                           alt={p.name}
-                          className="w-10 h-10 rounded-xl object-cover border border-[#334155] shrink-0"
+                          onError={(e) => { (e.target as HTMLImageElement).src = DEFAULT_PLAYER_AVATAR; }}
+                          className="w-10 h-10 rounded-xl object-cover border border-[#334155] shrink-0 bg-[#182438]"
                         />
                         <div>
                           <div className="font-bold text-white text-sm">{p.name}</div>
@@ -423,15 +501,88 @@ export default function AdminPlayersPage() {
                 </div>
               </div>
 
+              {/* Photo Upload Section */}
               <div>
-                <label className="block text-[#CBD5E1] font-bold uppercase mb-1">Photo URL</label>
-                <input
-                  type="text"
-                  value={photoUrl}
-                  onChange={(e) => setPhotoUrl(e.target.value)}
-                  placeholder="https://..."
-                  className="w-full bg-[#182438] border border-[#334155] rounded-xl px-3.5 py-2.5 text-white placeholder-[#94A3B8] focus:outline-none focus:border-[#F5B942]"
-                />
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-[#CBD5E1] font-bold uppercase">
+                    Player Photo
+                  </label>
+                  <span className="text-[10px] text-[#94A3B8]">
+                    JPG, JPEG, PNG, WEBP (Max 5 MB)
+                  </span>
+                </div>
+
+                <div className="p-3.5 rounded-2xl bg-[#182438] border border-[#334155] flex flex-col sm:flex-row items-center gap-4">
+                  {/* Photo Preview Box */}
+                  <div className="relative w-24 h-24 sm:w-28 sm:h-28 rounded-2xl overflow-hidden border-2 border-[#334155] bg-[#101827] shrink-0 shadow-inner">
+                    <img
+                      src={photoPreview || photoUrl || DEFAULT_PLAYER_AVATAR}
+                      alt="Player Preview"
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = DEFAULT_PLAYER_AVATAR;
+                      }}
+                    />
+                    {uploadingPhoto && (
+                      <div className="absolute inset-0 bg-[#101827]/85 flex flex-col items-center justify-center text-[10px] text-[#F5B942] font-bold">
+                        <div className="w-5 h-5 border-2 border-[#F5B942] border-t-transparent rounded-full animate-spin mb-1" />
+                        <span>Optimizing...</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Actions & File Picker */}
+                  <div className="flex-1 space-y-2 text-center sm:text-left w-full">
+                    {/* Hidden file input */}
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,image/jpg"
+                      onChange={handleFileSelect}
+                      className="hidden"
+                    />
+
+                    <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={uploadingPhoto}
+                        className="px-3.5 py-2 rounded-xl bg-[#F5B942] hover:bg-[#FFD66B] text-[#101827] font-black text-xs uppercase tracking-wider transition flex items-center gap-1.5 shadow-md shadow-[#F5B942]/10 disabled:opacity-50"
+                      >
+                        <Camera className="w-3.5 h-3.5" />
+                        {photoPreview && photoPreview !== DEFAULT_PLAYER_AVATAR ? 'Change Photo' : 'Upload Player Photo'}
+                      </button>
+
+                      {((photoPreview && photoPreview !== DEFAULT_PLAYER_AVATAR) || (photoUrl && photoUrl !== DEFAULT_PLAYER_AVATAR)) && (
+                        <button
+                          type="button"
+                          onClick={handleRemovePhoto}
+                          disabled={uploadingPhoto}
+                          className="px-3 py-2 rounded-xl bg-[#334155] hover:bg-rose-500/20 hover:text-rose-300 hover:border-rose-500/40 text-[#CBD5E1] font-bold text-xs border border-[#475569] transition flex items-center gap-1"
+                        >
+                          <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+                          Remove
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="text-[11px] text-[#94A3B8]">
+                      {selectedFile ? (
+                        <span className="text-[#22c55e] font-semibold flex items-center justify-center sm:justify-start gap-1">
+                          ✓ Image compressed: {(selectedFile.size / 1024).toFixed(1)} KB ({selectedFile.name})
+                        </span>
+                      ) : (
+                        <span>Select a photo from your computer. Faces are centered without distortion.</span>
+                      )}
+                    </div>
+
+                    {photoError && (
+                      <div className="p-2 rounded-lg bg-rose-500/15 border border-rose-500/30 text-rose-300 text-[11px] font-semibold">
+                        {photoError}
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
 
               <div className="grid grid-cols-3 gap-3">
@@ -508,9 +659,10 @@ export default function AdminPlayersPage() {
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-3 rounded-xl bg-[#F5B942] hover:bg-[#FFD66B] text-[#101827] font-black transition shadow-md shadow-[#F5B942]/20"
+                  disabled={uploadingPhoto}
+                  className="flex-1 py-3 rounded-xl bg-[#F5B942] hover:bg-[#FFD66B] text-[#101827] font-black transition shadow-md shadow-[#F5B942]/20 disabled:bg-[#475569] disabled:text-[#CBD5E1] disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
-                  Save Player
+                  {uploadingPhoto ? 'Saving & Uploading...' : editingPlayer ? 'Update Player' : 'Register Player'}
                 </button>
               </div>
             </form>

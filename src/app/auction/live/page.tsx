@@ -228,8 +228,11 @@ export default function LiveAuctionPage() {
               <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 my-2">
                 <div className="w-44 h-44 sm:w-52 sm:h-52 rounded-2xl overflow-hidden border-2 border-[#F5B942]/50 shadow-2xl relative shrink-0 bg-[#182438]">
                   <img
-                    src={player.photo_url}
+                    src={player.photo_url || '/default-player-avatar.svg'}
                     alt={player.name}
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src = '/default-player-avatar.svg';
+                    }}
                     className="w-full h-full object-cover"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-[#101827]/90 via-transparent to-transparent" />

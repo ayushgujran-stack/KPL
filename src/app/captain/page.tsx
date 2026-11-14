@@ -177,9 +177,12 @@ export default function CaptainDashboardPage() {
                     <td className="py-3.5 px-4">
                       <div className="flex items-center gap-3">
                         <img
-                          src={player.photo_url}
+                          src={player.photo_url || '/default-player-avatar.svg'}
                           alt={player.name}
-                          className="w-10 h-10 rounded-xl object-cover border border-[#334155] shrink-0"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = '/default-player-avatar.svg';
+                          }}
+                          className="w-10 h-10 rounded-xl object-cover border border-[#334155] shrink-0 bg-[#182438]"
                         />
                         <div>
                           <div className="font-bold text-white text-sm">{player.name}</div>
