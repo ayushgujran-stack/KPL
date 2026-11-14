@@ -23,7 +23,13 @@ export default function LoginPage() {
     setLoading(false);
 
     if (res.success) {
-      router.push('/auction/live');
+      if (res.user?.role === 'captain') {
+        router.push('/captain');
+      } else if (res.user?.role === 'super_admin') {
+        router.push('/admin');
+      } else {
+        router.push('/auction/live');
+      }
     } else {
       setError(res.error || 'Invalid credentials');
     }
@@ -103,9 +109,9 @@ export default function LoginPage() {
           {/* Quick Credential Helpers */}
           <div className="mt-8 pt-6 border-t border-[#334155]">
             <div className="text-[11px] font-bold text-[#94A3B8] uppercase tracking-wider mb-3 text-center">
-              Quick Fill Credentials
+              Quick Fill Role Credentials
             </div>
-            <div className="grid grid-cols-2 gap-2 text-xs">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
               <button
                 type="button"
                 onClick={() => setCredentials('admin', 'admin123')}
@@ -126,6 +132,15 @@ export default function LoginPage() {
 
               <button
                 type="button"
+                onClick={() => setCredentials('organiser2', 'org123')}
+                className="p-2.5 rounded-xl bg-[#182438] hover:bg-[#263852] border border-[#334155] text-left transition"
+              >
+                <div className="font-extrabold text-[#c084fc]">Organiser 2</div>
+                <div className="text-[10px] text-[#94A3B8] font-mono mt-0.5">organiser2 / org123</div>
+              </button>
+
+              <button
+                type="button"
                 onClick={() => setCredentials('captain_mt', 'cap123')}
                 className="p-2.5 rounded-xl bg-[#182438] hover:bg-[#263852] border border-[#334155] text-left transition"
               >
@@ -140,6 +155,24 @@ export default function LoginPage() {
               >
                 <div className="font-extrabold text-[#FFD66B]">Captain Chennai</div>
                 <div className="text-[10px] text-[#94A3B8] font-mono mt-0.5">captain_css / cap123</div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setCredentials('captain_rc', 'cap123')}
+                className="p-2.5 rounded-xl bg-[#182438] hover:bg-[#263852] border border-[#334155] text-left transition"
+              >
+                <div className="font-extrabold text-[#ef4444]">Captain Bangalore</div>
+                <div className="text-[10px] text-[#94A3B8] font-mono mt-0.5">captain_rc / cap123</div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setCredentials('captain_kk', 'cap123')}
+                className="p-2.5 rounded-xl bg-[#182438] hover:bg-[#263852] border border-[#334155] text-left transition col-span-2 sm:col-span-1"
+              >
+                <div className="font-extrabold text-[#a855f7]">Captain Kolkata</div>
+                <div className="text-[10px] text-[#94A3B8] font-mono mt-0.5">captain_kk / cap123</div>
               </button>
             </div>
           </div>

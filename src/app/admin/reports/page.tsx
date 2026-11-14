@@ -1,21 +1,58 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Download, Printer } from 'lucide-react';
+import Link from 'next/link';
+import { Download, Printer, ShieldAlert } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
 import * as XLSX from 'xlsx';
 
 export default function AdminReportsPage() {
+  const { user, isLoading } = useAuth();
   const [reportData, setReportData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'squads' | 'sold' | 'unsold' | 'bids' | 'draws' | 'analytics'>('squads');
 
   useEffect(() => {
-    fetch('/api/reports')
-      .then((res) => res.json())
-      .then((data) => setReportData(data))
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, []);
+    if (user && ['super_admin', 'organiser_1', 'organiser_2'].includes(user.role)) {
+      fetch('/api/reports')
+        .then((res) => res.json())
+        .then((data) => setReportData(data))
+        .catch(() => {})
+        .finally(() => setLoading(false));
+    } else if (!isLoading && !user) {
+      setLoading(false);
+    }
+  }, [user, isLoading]);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-[calc(100vh-4rem)] bg-[#101827] flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-[#F5B942] border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (!user || !['super_admin', 'organiser_1', 'organiser_2'].includes(user.role)) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 py-24 text-center">
+        <div className="w-16 h-16 rounded-2xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-400 mx-auto mb-4">
+          <ShieldAlert className="w-8 h-8" />
+        </div>
+        <h1 className="text-2xl font-black text-white">Administrator Access Required</h1>
+        <p className="text-xs text-[#94A3B8] mt-2 max-w-md mx-auto">
+          {user ? `Your signed-in account (${user.name} - ${user.role}) does not have permission to view official auction reports.` : 'You must sign in with an authorized administrator account to view reports.'}
+        </p>
+        <div className="mt-6 flex justify-center gap-3">
+          <Link
+            href={user ? (user.role === 'captain' ? '/captain' : '/auction/live') : '/login'}
+            className="px-5 py-2.5 rounded-xl bg-[#F5B942] hover:bg-[#FFD66B] text-[#101827] font-black text-xs uppercase tracking-wider transition shadow-lg shadow-[#F5B942]/20"
+          >
+            {user ? 'Return to Permitted View' : 'Sign In Now'}
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   const handleExportExcel = () => {
     if (!reportData) return;

@@ -66,12 +66,23 @@ export async function POST(req: Request) {
     const body = await req.json();
 
     // Check if bulk upload
-    if (Array.isArray(body)) {
+    const isBulk = Array.isArray(body) || (body && Array.isArray(body.bulk));
+    if (isBulk) {
+      const rawList = Array.isArray(body) ? body : (body.bulk || []);
       const tx = db.transaction((playerList: any[]) => {
         let inserted = 0;
-        for (const p of playerList) {
-          if (!p.name) continue;
-          const number = p.player_number || `PLY-${String(Date.now()).slice(-4)}-${Math.floor(Math.random() * 100)}`;
+        for (const item of playerList) {
+          const name = item.name || item['Full Name'] || item['Player Name'] || item['Name'];
+          if (!name) continue;
+          const number = item.player_number || item['Player ID'] || item['Player Number'] || item['Number'] || `PLY-${String(Date.now()).slice(-4)}-${Math.floor(Math.random() * 100)}`;
+          const photo_url = item.photo_url || item['Photo URL'] || item['Photo'] || DEFAULT_PLAYER_AVATAR;
+          const gender = item.gender || item['Gender'] || 'Male';
+          const age = item.age || item['Age'] ? Number(item.age || item['Age']) : null;
+          const role = item.role || item['Playing Role'] || item['Role'] || 'All-rounder';
+          const category = item.category || item['Category'] || 'Category A';
+          const base_price = Number(item.base_price || item['Base Price (Pts)'] || item['Base Price']) || 10;
+          const contact = item.contact || item['Contact'] || item['Contact / Notes'] || null;
+
           const id = `ply-${crypto.randomUUID().slice(0, 8)}`;
           db.prepare(`
             INSERT OR REPLACE INTO players (
@@ -80,21 +91,21 @@ export async function POST(req: Request) {
           `).run(
             id,
             number,
-            p.name,
-            p.photo_url || DEFAULT_PLAYER_AVATAR,
-            p.gender || 'Male',
-            p.age ? Number(p.age) : null,
-            p.role || 'All-rounder',
-            p.category || 'Category A',
-            Number(p.base_price) || 10,
-            p.contact || null
+            name,
+            photo_url,
+            gender,
+            age,
+            role,
+            category,
+            base_price,
+            contact
           );
           inserted++;
         }
         return inserted;
       });
 
-      const count = tx(body);
+      const count = tx(rawList);
       logAudit(user.id, user.name, user.role, 'BULK_PLAYER_IMPORT', `Imported ${count} players via batch.`);
       return NextResponse.json({ success: true, count });
     }

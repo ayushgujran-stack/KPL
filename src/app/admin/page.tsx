@@ -4,19 +4,51 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { useAuction } from '@/context/AuctionContext';
-import { Shield, Users, Trophy, FileText, Database, Key, ArrowRight, Activity } from 'lucide-react';
+import { Shield, Users, Trophy, FileText, Database, Key, ArrowRight, Activity, ShieldAlert } from 'lucide-react';
 
 export default function AdminDashboardPage() {
-  const { user } = useAuth();
+  const { user, isLoading } = useAuth();
   const { state } = useAuction();
   const [logs, setLogs] = useState<any[]>([]);
 
   useEffect(() => {
-    fetch('/api/admin/audit-logs')
-      .then((res) => res.json())
-      .then((data) => setLogs(data.logs || []))
-      .catch(() => {});
-  }, []);
+    if (user && ['super_admin', 'organiser_1', 'organiser_2'].includes(user.role)) {
+      fetch('/api/admin/audit-logs')
+        .then((res) => res.json())
+        .then((data) => setLogs(data.logs || []))
+        .catch(() => {});
+    }
+  }, [user]);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-[calc(100vh-4rem)] bg-[#101827] flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-[#F5B942] border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (!user || !['super_admin', 'organiser_1', 'organiser_2'].includes(user.role)) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 py-24 text-center">
+        <div className="w-16 h-16 rounded-2xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-400 mx-auto mb-4">
+          <ShieldAlert className="w-8 h-8" />
+        </div>
+        <h1 className="text-2xl font-black text-white">Administrator Access Required</h1>
+        <p className="text-xs text-[#94A3B8] mt-2 max-w-md mx-auto">
+          {user ? `Your signed-in account (${user.name} - ${user.role}) does not have administrative rights to this console.` : 'You must sign in with an authorized administrator account to view this module.'}
+        </p>
+        <div className="mt-6 flex justify-center gap-3">
+          <Link
+            href={user ? (user.role === 'captain' ? '/captain' : '/auction/live') : '/login'}
+            className="px-5 py-2.5 rounded-xl bg-[#F5B942] hover:bg-[#FFD66B] text-[#101827] font-black text-xs uppercase tracking-wider transition shadow-lg shadow-[#F5B942]/20"
+          >
+            {user ? 'Return to Permitted View' : 'Sign In Now'}
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 bg-[#101827] min-h-[calc(100vh-4rem)]">

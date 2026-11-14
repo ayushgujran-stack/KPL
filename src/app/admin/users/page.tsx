@@ -1,12 +1,13 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { User, UserRole } from '@/types';
-import { Plus, Trash2, X } from 'lucide-react';
+import { Plus, Trash2, X, ShieldAlert } from 'lucide-react';
 
 export default function AdminUsersPage() {
-  const { user: currentUser } = useAuth();
+  const { user: currentUser, isLoading } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -29,8 +30,40 @@ export default function AdminUsersPage() {
   };
 
   useEffect(() => {
-    fetchUsers();
-  }, []);
+    if (currentUser?.role === 'super_admin') {
+      fetchUsers();
+    }
+  }, [currentUser]);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-[calc(100vh-4rem)] bg-[#101827] flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-[#F5B942] border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (currentUser?.role !== 'super_admin') {
+    return (
+      <div className="max-w-2xl mx-auto px-4 py-24 text-center">
+        <div className="w-16 h-16 rounded-2xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-400 mx-auto mb-4">
+          <ShieldAlert className="w-8 h-8" />
+        </div>
+        <h1 className="text-2xl font-black text-white">Super Admin Access Required</h1>
+        <p className="text-xs text-[#94A3B8] mt-2">
+          User provisioning and role permissions are restricted strictly to the Super Admin.
+        </p>
+        <div className="mt-6">
+          <Link
+            href="/admin"
+            className="px-5 py-2.5 rounded-xl bg-[#F5B942] hover:bg-[#FFD66B] text-[#101827] font-black text-xs uppercase tracking-wider transition shadow-lg shadow-[#F5B942]/20"
+          >
+            Back to Admin Center
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();

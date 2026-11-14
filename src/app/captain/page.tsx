@@ -3,18 +3,20 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useAuction } from '@/context/AuctionContext';
-import { Users, ArrowRight } from 'lucide-react';
+import { Users, ArrowRight, ShieldAlert, LogIn } from 'lucide-react';
 import Link from 'next/link';
 
 export default function CaptainDashboardPage() {
-  const { user } = useAuth();
+  const { user, isLoading } = useAuth();
   const { state } = useAuction();
 
   const [teamSquad, setTeamSquad] = useState<any[]>([]);
+  const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
 
   const teams = state?.teams || [];
-  // Find captain's team
-  const myTeam = teams.find((t) => t.id === user?.team_id) || teams[0];
+  // Find captain's team or admin-inspected team
+  const activeTeamId = (user?.role === 'captain' ? user.team_id : selectedTeamId) || user?.team_id || teams[0]?.id;
+  const myTeam = teams.find((t) => t.id === activeTeamId) || teams[0];
 
   useEffect(() => {
     if (!myTeam) return;
@@ -27,6 +29,36 @@ export default function CaptainDashboardPage() {
       .catch(() => {});
   }, [myTeam?.id, state?.soldCount]);
 
+  if (isLoading) {
+    return (
+      <div className="min-h-[calc(100vh-4rem)] bg-[#101827] flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-[#F5B942] border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 py-24 text-center">
+        <div className="w-16 h-16 rounded-2xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 mx-auto mb-4">
+          <LogIn className="w-8 h-8" />
+        </div>
+        <h1 className="text-2xl font-black text-white">Captain Sign-In Required</h1>
+        <p className="text-xs text-[#94A3B8] mt-2 max-w-md mx-auto">
+          Please sign in with your official Team Captain account to access the Captain Dashboard, live bidding, and roster status.
+        </p>
+        <div className="mt-6 flex justify-center gap-3">
+          <Link
+            href="/login"
+            className="px-5 py-2.5 rounded-xl bg-[#F5B942] hover:bg-[#FFD66B] text-[#101827] font-black text-xs uppercase tracking-wider transition shadow-lg shadow-[#F5B942]/20"
+          >
+            Sign In with Captain Account
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   const maleCount = teamSquad.filter((p) => p.gender === 'Male').length;
   const femaleCount = teamSquad.filter((p) => p.gender === 'Female').length;
 
@@ -37,6 +69,27 @@ export default function CaptainDashboardPage() {
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 bg-[#101827] min-h-[calc(100vh-4rem)]">
+      {/* Admin Multi-Franchise Switcher */}
+      {user && ['super_admin', 'organiser_1', 'organiser_2'].includes(user.role) && (
+        <div className="flex flex-wrap items-center gap-2 mb-6 p-3 bg-[#182438] rounded-2xl border border-[#334155]">
+          <span className="text-xs font-bold text-[#94A3B8] px-2">Admin Inspector:</span>
+          {teams.map((t) => (
+            <button
+              key={t.id}
+              onClick={() => setSelectedTeamId(t.id)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+                myTeam?.id === t.id
+                  ? 'bg-[#F5B942] text-[#101827] shadow-md'
+                  : 'bg-[#202F45] text-[#CBD5E1] hover:bg-[#334155]'
+              }`}
+            >
+              <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: t.primary_color }} />
+              {t.name} ({t.code})
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Top Banner Card */}
       <div
         className="rounded-3xl p-6 sm:p-8 border border-[#334155] bg-[#202F45] shadow-2xl relative overflow-hidden mb-8"

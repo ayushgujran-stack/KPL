@@ -1,13 +1,14 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { useAuction } from '@/context/AuctionContext';
 import { Player } from '@/types';
-import { Lock, Unlock, Plus, Trash2, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Lock, Unlock, Plus, Trash2, CheckCircle2, AlertCircle, ShieldAlert } from 'lucide-react';
 
 export default function AdminRetentionPage() {
-  const { user } = useAuth();
+  const { user, isLoading } = useAuth();
   const { state, refreshState } = useAuction();
 
   const [retentions, setRetentions] = useState<any[]>([]);
@@ -41,8 +42,40 @@ export default function AdminRetentionPage() {
   };
 
   useEffect(() => {
-    fetchRetentionsAndPlayers();
-  }, [state?.event?.status]);
+    if (user?.role === 'super_admin') {
+      fetchRetentionsAndPlayers();
+    }
+  }, [state?.event?.status, user]);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-[calc(100vh-4rem)] bg-[#101827] flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-[#F5B942] border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (user?.role !== 'super_admin') {
+    return (
+      <div className="max-w-2xl mx-auto px-4 py-24 text-center">
+        <div className="w-16 h-16 rounded-2xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-400 mx-auto mb-4">
+          <ShieldAlert className="w-8 h-8" />
+        </div>
+        <h1 className="text-2xl font-black text-white">Super Admin Access Required</h1>
+        <p className="text-xs text-[#94A3B8] mt-2">
+          Player retention configuration and purse allocation are restricted exclusively to the Super Admin.
+        </p>
+        <div className="mt-6">
+          <Link
+            href="/admin"
+            className="px-5 py-2.5 rounded-xl bg-[#F5B942] hover:bg-[#FFD66B] text-[#101827] font-black text-xs uppercase tracking-wider transition shadow-lg shadow-[#F5B942]/20"
+          >
+            Back to Admin Center
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   const handleAddRetention = async (e: React.FormEvent) => {
     e.preventDefault();

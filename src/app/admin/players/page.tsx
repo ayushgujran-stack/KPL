@@ -1,13 +1,16 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
+import Link from 'next/link';
 import { Player, Gender, PlayingRole } from '@/types';
+import { useAuth } from '@/context/AuthContext';
 import { useAuction } from '@/context/AuctionContext';
-import { Plus, Upload, Download, Search, Trash2, Edit2, X, Camera, Image as ImageIcon } from 'lucide-react';
+import { Plus, Upload, Download, Search, Trash2, Edit2, X, Camera, Image as ImageIcon, ShieldAlert } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { validateImageFile, compressPlayerPhoto, DEFAULT_PLAYER_AVATAR } from '@/lib/image-utils';
 
 export default function AdminPlayersPage() {
+  const { user, isLoading: authLoading } = useAuth();
   const { refreshState } = useAuction();
 
   const [players, setPlayers] = useState<Player[]>([]);
@@ -253,6 +256,36 @@ export default function AdminPlayersPage() {
       alert(`Failed to parse Excel file: ${err.message}`);
     }
   };
+
+  if (authLoading) {
+    return (
+      <div className="min-h-[calc(100vh-4rem)] bg-[#101827] flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-[#F5B942] border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (!user || !['super_admin', 'organiser_1', 'organiser_2'].includes(user.role)) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 py-24 text-center">
+        <div className="w-16 h-16 rounded-2xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-400 mx-auto mb-4">
+          <ShieldAlert className="w-8 h-8" />
+        </div>
+        <h1 className="text-2xl font-black text-white">Administrator Access Required</h1>
+        <p className="text-xs text-[#94A3B8] mt-2">
+          Player registration and registry management is restricted to Super Admins and Organisers.
+        </p>
+        <div className="mt-6">
+          <Link
+            href={user ? (user.role === 'captain' ? '/captain' : '/auction/live') : '/login'}
+            className="px-5 py-2.5 rounded-xl bg-[#F5B942] hover:bg-[#FFD66B] text-[#101827] font-black text-xs uppercase tracking-wider transition shadow-lg shadow-[#F5B942]/20"
+          >
+            {user ? 'Return to Permitted View' : 'Sign In Now'}
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 bg-[#101827] min-h-[calc(100vh-4rem)]">
