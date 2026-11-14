@@ -1,9 +1,10 @@
 import { db } from './db';
 import crypto from 'crypto';
 
-export function seedDatabase() {
-  const userCount = db.prepare(`SELECT COUNT(*) as cnt FROM users`).get() as { cnt: number };
-  if (userCount.cnt > 0) {
+export function seedDatabase(targetDb?: any) {
+  const activeDb = targetDb || db;
+  const userCount = activeDb.prepare(`SELECT COUNT(*) as cnt FROM users`).get() as { cnt: number };
+  if (userCount && userCount.cnt > 0) {
     // Already seeded
     return;
   }
@@ -26,7 +27,7 @@ export function seedDatabase() {
   ];
 
   for (const u of users) {
-    db.prepare(`
+    activeDb.prepare(`
       INSERT INTO users (id, username, password, name, role, team_id)
       VALUES (?, ?, ?, ?, ?, ?)
     `).run(u.id, u.username, u.password, u.name, u.role, u.team_id || null);
@@ -81,7 +82,7 @@ export function seedDatabase() {
   ];
 
   for (const t of teams) {
-    db.prepare(`
+    activeDb.prepare(`
       INSERT INTO teams (id, name, code, logo_url, primary_color, secondary_color, captain_id, captain_name, initial_budget)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(t.id, t.name, t.code, t.logo_url, t.primary_color, t.secondary_color, t.captain_id, t.captain_name, t.initial_budget);
@@ -460,14 +461,14 @@ export function seedDatabase() {
 
   for (const p of players) {
     const id = `ply-${p.player_number.toLowerCase()}`;
-    db.prepare(`
+    activeDb.prepare(`
       INSERT INTO players (id, player_number, name, photo_url, gender, age, role, category, base_price, is_active, status)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'available')
     `).run(id, p.player_number, p.name, p.photo_url, p.gender, p.age, p.role, p.category, p.base_price);
   }
 
   // 4. Initial Audit Log
-  db.prepare(`
+  activeDb.prepare(`
     INSERT INTO audit_logs (id, user_id, user_name, user_role, action, details)
     VALUES (?, 'usr-admin', 'Vikram Malhotra', 'super_admin', 'SYSTEM_INITIALIZATION', 'Seeded master accounts, 4 teams, and 36 cricket players.')
   `).run(crypto.randomUUID());
@@ -475,5 +476,7 @@ export function seedDatabase() {
   console.log('✓ Initial KPL Auction Database successfully seeded!');
 }
 
-// Run seed immediately
-seedDatabase();
+// Auto-seed when executed directly via CLI or test
+if (process.env.RUN_SEED === 'true') {
+  seedDatabase();
+}

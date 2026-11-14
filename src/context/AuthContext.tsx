@@ -27,8 +27,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const res = await fetch('/api/auth/me');
       if (res.ok) {
-        const data = await res.json();
-        setUser(data.user || null);
+        const text = await res.text();
+        if (text) {
+          const data = JSON.parse(text);
+          setUser(data.user || null);
+        } else {
+          setUser(null);
+        }
       } else {
         setUser(null);
       }
@@ -50,9 +55,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password }),
       });
-      const data = await res.json();
+      const text = await res.text();
+      let data: any = {};
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch {
+        return {
+          success: false,
+          error: `Server returned invalid response (Status ${res.status}): ${text.slice(0, 100) || 'Empty body'}`
+        };
+      }
+
       if (!res.ok) {
-        return { success: false, error: data.error || 'Login failed' };
+        return { success: false, error: data.error || `Login failed (Status ${res.status})` };
       }
       setUser(data.user);
       return { success: true };

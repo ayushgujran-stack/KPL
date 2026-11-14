@@ -1,13 +1,31 @@
 import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
+import { seedDatabase } from './seed';
 
-const DB_DIR = path.join(process.cwd(), 'data');
-if (!fs.existsSync(DB_DIR)) {
-  fs.mkdirSync(DB_DIR, { recursive: true });
+const isServerless = Boolean(
+  process.env.VERCEL ||
+  process.env.AWS_LAMBDA_FUNCTION_NAME ||
+  process.env.LAMBDA_TASK_ROOT ||
+  (process.env.NODE_ENV === 'production' && !fs.existsSync(path.join(process.cwd(), 'data')))
+);
+
+let DB_PATH: string;
+
+if (isServerless) {
+  DB_PATH = path.join('/tmp', 'kpl.db');
+} else {
+  const DB_DIR = path.join(process.cwd(), 'data');
+  try {
+    if (!fs.existsSync(DB_DIR)) {
+      fs.mkdirSync(DB_DIR, { recursive: true });
+    }
+    DB_PATH = path.join(DB_DIR, 'kpl.db');
+  } catch (err) {
+    console.warn('Could not create DB_DIR, falling back to /tmp:', err);
+    DB_PATH = path.join('/tmp', 'kpl.db');
+  }
 }
-
-const DB_PATH = path.join(DB_DIR, 'kpl.db');
 
 // Global database instance caching for Next.js hot reload
 const globalForDb = global as unknown as { db?: Database.Database };
@@ -22,9 +40,17 @@ if (process.env.NODE_ENV !== 'production') {
   globalForDb.db = db;
 }
 
-// Enable WAL mode & foreign keys for high-performance concurrency & relational integrity
-db.pragma('journal_mode = WAL');
-db.pragma('foreign_keys = ON');
+// Set journal mode & foreign keys
+try {
+  if (isServerless) {
+    db.pragma('journal_mode = MEMORY');
+  } else {
+    db.pragma('journal_mode = WAL');
+  }
+  db.pragma('foreign_keys = ON');
+} catch (pragmaErr) {
+  console.warn('DB pragma warning:', pragmaErr);
+}
 
 export function initDatabase() {
   db.exec(`
@@ -165,6 +191,16 @@ export function initDatabase() {
       INSERT INTO auction_events (id, name, year, status, initial_budget, current_bid, bid_timer, timer_duration, draw_category)
       VALUES ('kpl-2026', 'Premier Cricket League Auction 2026', 2026, 'not_started', 150.0, 0.0, 20, 20, 'all')
     `).run();
+  }
+
+  // Ensure default seed data (accounts, teams, players) is loaded
+  try {
+    const userCount = db.prepare('SELECT COUNT(*) as cnt FROM users').get() as { cnt: number } | undefined;
+    if (!userCount || userCount.cnt === 0) {
+      seedDatabase(db);
+    }
+  } catch (seedErr) {
+    console.warn('Auto-seed check notice:', seedErr);
   }
 }
 
