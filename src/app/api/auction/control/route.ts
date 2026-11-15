@@ -12,7 +12,7 @@ export async function POST(req: Request) {
     }
 
     const { action, payload } = await req.json();
-    const state = controlAuction(action, payload, user);
+    const state = await controlAuction(action, payload, user);
     return NextResponse.json(state);
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 400 });

@@ -14,7 +14,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Player ID required' }, { status: 400 });
     }
 
-    const state = reintroducePlayer(playerId, user);
+    const state = await reintroducePlayer(playerId, user);
     return NextResponse.json(state);
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 400 });

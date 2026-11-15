@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { logAudit } from '@/lib/auction-service';
+import { saveUploadedMedia } from '@/lib/firestore-service';
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
@@ -75,7 +76,13 @@ export async function POST(req: Request) {
       }
     }
 
-    // 2. Persist in database media store to guarantee availability across restarts, redeploys, and cold boots
+    // 2. Persist in Cloud Firestore uploaded_media collection and local database
+    try {
+      await saveUploadedMedia(filename, mimeType || 'image/webp', buffer);
+    } catch (fMediaErr: any) {
+      console.warn('Firestore media save notice:', fMediaErr.message);
+    }
+
     const mediaId = `media_${crypto.randomUUID().slice(0, 12)}`;
     try {
       db.prepare(`
@@ -87,7 +94,7 @@ export async function POST(req: Request) {
     }
 
     // 3. Log audit event
-    logAudit(user.id, user.name, user.role, 'UPLOAD_PLAYER_PHOTO', `Uploaded photo ${filename} (${buffer.length} bytes)`);
+    await logAudit(user.id, user.name, user.role, 'UPLOAD_PLAYER_PHOTO', `Uploaded photo ${filename} (${buffer.length} bytes)`);
 
     // Standard public image URL reference
     const imageUrl = `/api/uploads/players/${filename}`;

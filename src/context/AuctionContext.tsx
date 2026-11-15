@@ -2,6 +2,8 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { AuctionStatePayload } from '@/lib/auction-service';
+import { firestore } from '@/lib/firebase';
+import { doc, onSnapshot } from 'firebase/firestore';
 import confetti from 'canvas-confetti';
 
 interface AuctionContextType {
@@ -93,15 +95,36 @@ export function AuctionProvider({ children }: { children: React.ReactNode }) {
     }
   }, [applyStateIfChanged]);
 
-  // Real-time synchronization with SSE and fallback
+  // Real-time synchronization with Cloud Firestore onSnapshot, SSE and fallback
   useEffect(() => {
     let isUnmounted = false;
     let eventSource: EventSource | null = null;
     let pollInterval: NodeJS.Timeout | null = null;
+    let unsubscribeFirestore: (() => void) | null = null;
     let isSseConnected = false;
 
     // Initial state fetch
     refreshState();
+
+    // 1. Direct Cloud Firestore Real-time WebSocket Subscription
+    try {
+      const eventDocRef = doc(firestore, 'auction_events', 'kpl-2026');
+      unsubscribeFirestore = onSnapshot(
+        eventDocRef,
+        (snapshot) => {
+          if (isUnmounted) return;
+          if (snapshot.exists()) {
+            // Authoritative state update directly from Cloud Firestore
+            refreshState();
+          }
+        },
+        (snapErr) => {
+          console.warn('Firestore onSnapshot listener notice:', snapErr.message);
+        }
+      );
+    } catch (fsSubErr: any) {
+      console.warn('Firestore subscription fallback:', fsSubErr.message);
+    }
 
     const startPollingFallback = () => {
       if (pollInterval || isUnmounted) return;
@@ -144,6 +167,9 @@ export function AuctionProvider({ children }: { children: React.ReactNode }) {
 
     return () => {
       isUnmounted = true;
+      if (unsubscribeFirestore) {
+        unsubscribeFirestore();
+      }
       if (eventSource) {
         eventSource.close();
       }

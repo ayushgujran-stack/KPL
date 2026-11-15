@@ -11,7 +11,7 @@ export async function POST() {
       return NextResponse.json({ error: 'Unauthorized: Only organisers or admin can confirm drawn players.' }, { status: 403 });
     }
 
-    const state = confirmPlayerForAuction(user);
+    const state = await confirmPlayerForAuction(user);
     return NextResponse.json(state);
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 400 });

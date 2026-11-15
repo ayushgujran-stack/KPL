@@ -1,11 +1,30 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, connection } from 'next/server';
 import { db } from '@/lib/db';
 import { getCurrentUser } from '@/lib/auth';
 import { logAudit } from '@/lib/auction-service';
+import { adminDb } from '@/lib/firebase-admin';
+import {
+  getFirestorePlayerById,
+  updateFirestorePlayer,
+  deleteFirestorePlayer,
+} from '@/lib/firestore-service';
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    await connection();
     const { id } = await params;
+
+    if (adminDb) {
+      try {
+        const result = await getFirestorePlayerById(id);
+        if (result) {
+          return NextResponse.json(result);
+        }
+      } catch (err: any) {
+        console.warn('Firestore getPlayerById fallback to SQLite:', err.message);
+      }
+    }
+
     const player = db.prepare(`SELECT * FROM players WHERE id = ?`).get(id);
     if (!player) return NextResponse.json({ error: 'Player not found' }, { status: 404 });
 
@@ -25,6 +44,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    await connection();
     const user = await getCurrentUser();
     if (!user || user.role !== 'super_admin') {
       return NextResponse.json({ error: 'Unauthorized: Only Super Admin can edit players' }, { status: 403 });
@@ -35,34 +55,63 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 
     const { name, player_number, photo_url, gender, age, role, category, base_price, contact, is_active } = body;
 
-    db.prepare(`
-      UPDATE players
-      SET name = COALESCE(?, name),
-          player_number = COALESCE(?, player_number),
-          photo_url = COALESCE(?, photo_url),
-          gender = COALESCE(?, gender),
-          age = COALESCE(?, age),
-          role = COALESCE(?, role),
-          category = COALESCE(?, category),
-          base_price = COALESCE(?, base_price),
-          contact = COALESCE(?, contact),
-          is_active = COALESCE(?, is_active)
-      WHERE id = ?
-    `).run(
-      name,
-      player_number,
-      photo_url,
-      gender,
-      age !== undefined ? Number(age) : null,
-      role,
-      category,
-      base_price !== undefined ? Number(base_price) : null,
-      contact,
-      is_active !== undefined ? Number(is_active) : null,
-      id
-    );
+    let updatedPlayer: any = null;
 
-    logAudit(user.id, user.name, user.role, 'UPDATE_PLAYER', `Updated player record for ${name || id}`);
+    if (adminDb) {
+      try {
+        updatedPlayer = await updateFirestorePlayer(id, {
+          name,
+          player_number,
+          photo_url,
+          gender,
+          age,
+          role,
+          category,
+          base_price,
+          contact,
+          is_active,
+        });
+      } catch (err: any) {
+        console.warn('Firestore updatePlayer fallback to SQLite:', err.message);
+      }
+    }
+
+    try {
+      db.prepare(`
+        UPDATE players
+        SET name = COALESCE(?, name),
+            player_number = COALESCE(?, player_number),
+            photo_url = COALESCE(?, photo_url),
+            gender = COALESCE(?, gender),
+            age = COALESCE(?, age),
+            role = COALESCE(?, role),
+            category = COALESCE(?, category),
+            base_price = COALESCE(?, base_price),
+            contact = COALESCE(?, contact),
+            is_active = COALESCE(?, is_active)
+        WHERE id = ?
+      `).run(
+        name,
+        player_number,
+        photo_url,
+        gender,
+        age !== undefined ? Number(age) : null,
+        role,
+        category,
+        base_price !== undefined ? Number(base_price) : null,
+        contact,
+        is_active !== undefined ? Number(is_active) : null,
+        id
+      );
+    } catch (e: any) {
+      console.warn('SQLite mirror update player notice:', e.message);
+    }
+
+    await logAudit(user.id, user.name, user.role, 'UPDATE_PLAYER', `Updated player record for ${name || id}`);
+
+    if (updatedPlayer) {
+      return NextResponse.json({ player: updatedPlayer });
+    }
 
     const updated = db.prepare(`SELECT * FROM players WHERE id = ?`).get(id);
     return NextResponse.json({ player: updated });
@@ -73,6 +122,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 
 export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    await connection();
     const user = await getCurrentUser();
     if (!user || user.role !== 'super_admin') {
       return NextResponse.json({ error: 'Unauthorized: Only Super Admin can delete players' }, { status: 403 });
@@ -80,16 +130,28 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
 
     const { id } = await params;
 
-    const tx = db.transaction(() => {
-      db.prepare(`DELETE FROM team_retentions WHERE player_id = ?`).run(id);
-      db.prepare(`DELETE FROM bids WHERE player_id = ?`).run(id);
-      db.prepare(`DELETE FROM random_draws WHERE player_id = ?`).run(id);
-      db.prepare(`DELETE FROM auction_results WHERE player_id = ?`).run(id);
-      db.prepare(`DELETE FROM players WHERE id = ?`).run(id);
-    });
-    tx();
+    if (adminDb) {
+      try {
+        await deleteFirestorePlayer(id);
+      } catch (err: any) {
+        console.warn('Firestore deletePlayer fallback to SQLite:', err.message);
+      }
+    }
 
-    logAudit(user.id, user.name, user.role, 'DELETE_PLAYER', `Deleted player ${id}`);
+    try {
+      const tx = db.transaction(() => {
+        db.prepare(`DELETE FROM team_retentions WHERE player_id = ?`).run(id);
+        db.prepare(`DELETE FROM bids WHERE player_id = ?`).run(id);
+        db.prepare(`DELETE FROM random_draws WHERE player_id = ?`).run(id);
+        db.prepare(`DELETE FROM auction_results WHERE player_id = ?`).run(id);
+        db.prepare(`DELETE FROM players WHERE id = ?`).run(id);
+      });
+      tx();
+    } catch (e: any) {
+      console.warn('SQLite mirror delete player notice:', e.message);
+    }
+
+    await logAudit(user.id, user.name, user.role, 'DELETE_PLAYER', `Deleted player ${id}`);
     return NextResponse.json({ success: true });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 400 });

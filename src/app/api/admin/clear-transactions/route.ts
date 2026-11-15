@@ -1,7 +1,6 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, connection } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
 import { clearTransactionData } from '@/lib/auction-service';
-import { connection } from 'next/server';
 
 export async function POST(req: Request) {
   try {
@@ -12,7 +11,7 @@ export async function POST(req: Request) {
     }
 
     const { confirmationPhrase } = await req.json();
-    const result = clearTransactionData(confirmationPhrase, user);
+    const result = await clearTransactionData(confirmationPhrase, user);
     return NextResponse.json(result);
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 400 });

@@ -215,13 +215,15 @@ service cloud.firestore {
 
     function isValidUser(data) {
       return hasRequiredFields(['id', 'username', 'name', 'role']) &&
-             hasOnlyAllowedFields(['id', 'username', 'name', 'role', 'team_id', 'created_at', 'password_hash']) &&
+             hasOnlyAllowedFields(['id', 'username', 'name', 'role', 'team_id', 'created_at', 'password_hash', 'password', 'email']) &&
              data.id is string && data.id.size() >= 1 && data.id.size() <= 64 &&
              data.username is string && data.username.size() >= 2 && data.username.size() <= 50 &&
              data.name is string && data.name.size() >= 2 && data.name.size() <= 100 &&
              data.role in ['super_admin', 'organiser_1', 'organiser_2', 'captain', 'viewer'] &&
              (!('team_id' in data) || data.team_id == null || (data.team_id is string && data.team_id.size() <= 64)) &&
              (!('password_hash' in data) || (data.password_hash is string && data.password_hash.size() <= 256)) &&
+             (!('password' in data) || (data.password is string && data.password.size() <= 256)) &&
+             (!('email' in data) || (data.email is string && data.email.size() <= 150)) &&
              (!('created_at' in data) || isValidTimestampOrString(data.created_at));
     }
 
@@ -231,7 +233,7 @@ service cloud.firestore {
              data.id is string && data.id.size() >= 1 && data.id.size() <= 64 &&
              data.name is string && data.name.size() >= 2 && data.name.size() <= 100 &&
              data.year is number && data.year >= 2000 && data.year <= 2100 &&
-             data.status in ['not_started', 'drawing', 'drawn', 'bidding', 'paused', 'sold', 'unsold', 'completed'] &&
+             data.status in ['not_started', 'NOT_STARTED', 'drawing', 'drawn', 'random_draw', 'RANDOM_DRAW', 'player_ready', 'PLAYER_READY', 'bidding', 'BIDDING', 'paused', 'bidding_paused', 'BIDDING_PAUSED', 'sold', 'unsold', 'result_completed', 'RESULT_COMPLETED', 'completed', 'auction_completed', 'AUCTION_COMPLETED'] &&
              data.initial_budget is number && data.initial_budget >= 0 && data.initial_budget <= 10000 &&
              (!('current_player_id' in data) || data.current_player_id == null || (data.current_player_id is string && data.current_player_id.size() <= 64)) &&
              data.current_bid is number && data.current_bid >= 0 && data.current_bid <= 10000 &&
@@ -390,17 +392,17 @@ service cloud.firestore {
     }
 
     // 5. team_retentions
-    // Public viewers can read; Super Admin has full control
+    // Public viewers can read; Super Admin and Organisers have control
     match /team_retentions/{retentionId} {
       allow read: if true;
-      allow create, delete: if isSuperAdmin() && isValidTeamRetention(request.resource.data);
-      allow update: if isSuperAdmin() && isValidTeamRetention(request.resource.data) && areImmutableFieldsUnchanged(['id', 'created_at']);
+      allow create, delete: if (isSuperAdmin() || isOrganiser()) && isValidTeamRetention(request.resource.data);
+      allow update: if (isSuperAdmin() || isOrganiser()) && isValidTeamRetention(request.resource.data) && areImmutableFieldsUnchanged(['id', 'created_at']);
     }
 
     // 6. random_draws
-    // Organisers and Super Admin have full control
+    // Public viewers can read draw candidates/result; Organisers and Super Admin have full control
     match /random_draws/{drawId} {
-      allow read: if isSuperAdmin() || isOrganiser();
+      allow read: if true;
       allow create, delete: if (isSuperAdmin() || isOrganiser()) && isValidRandomDraw(request.resource.data);
       allow update: if (isSuperAdmin() || isOrganiser()) && isValidRandomDraw(request.resource.data) && areImmutableFieldsUnchanged(['id', 'auction_event_id', 'player_id', 'created_at']);
     }
@@ -433,6 +435,13 @@ service cloud.firestore {
       allow create: if isStaff() && isValidAuditLog(request.resource.data) && request.resource.data.user_id == request.auth.uid;
       allow update: if false;
       allow delete: if false;
+    }
+
+    // 10. uploaded_media
+    // Public read for player photos across all devices; staff can upload
+    match /uploaded_media/{mediaId} {
+      allow read: if true;
+      allow write: if isSuperAdmin() || isOrganiser();
     }
   }
 }

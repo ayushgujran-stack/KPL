@@ -11,10 +11,10 @@ export async function GET(req: Request) {
         isClosed = true;
       });
 
-      const sendState = () => {
+      const sendState = async () => {
         if (isClosed) return;
         try {
-          const state = getAuctionState();
+          const state = await getAuctionState();
           controller.enqueue(encoder.encode(`data: ${JSON.stringify(state)}\n\n`));
         } catch {
           // stream closed

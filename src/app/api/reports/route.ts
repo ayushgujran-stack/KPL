@@ -1,11 +1,27 @@
 import { NextResponse, connection } from 'next/server';
 import { db } from '@/lib/db';
 import { getTeamsWithBudgets } from '@/lib/auction-service';
+import { adminDb } from '@/lib/firebase-admin';
+import { getFirestoreReportsData } from '@/lib/firestore-service';
 
 export async function GET(req: Request) {
   try {
     await connection();
-    const teams = getTeamsWithBudgets();
+
+    if (adminDb) {
+      try {
+        const reportData = await getFirestoreReportsData();
+        return NextResponse.json(reportData, {
+          headers: {
+            'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+          },
+        });
+      } catch (err: any) {
+        console.warn('Firestore getReportsData fallback to SQLite:', err.message);
+      }
+    }
+
+    const teams = await getTeamsWithBudgets();
 
     // Sold players with team details
     const soldPlayers = db.prepare(`

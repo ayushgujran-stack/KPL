@@ -1,5 +1,6 @@
 import { NextResponse, connection } from 'next/server';
 import { db } from '@/lib/db';
+import { adminDb } from '@/lib/firebase-admin';
 import { getTeamsWithBudgets, logAudit } from '@/lib/auction-service';
 import { getCurrentUser } from '@/lib/auth';
 import crypto from 'crypto';
@@ -7,7 +8,7 @@ import crypto from 'crypto';
 export async function GET(req: Request) {
   try {
     await connection();
-    const teams = getTeamsWithBudgets();
+    const teams = await getTeamsWithBudgets();
     return NextResponse.json({ teams }, {
       headers: {
         'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
@@ -32,23 +33,45 @@ export async function POST(req: Request) {
     }
 
     const id = `team-${code.toLowerCase().replace(/[^a-z0-9]/g, '')}`;
-    db.prepare(`
-      INSERT INTO teams (id, name, code, logo_url, primary_color, secondary_color, captain_name, initial_budget)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
+    const newTeamData = {
       id,
       name,
-      code.toUpperCase(),
-      logo_url || 'https://images.unsplash.com/photo-1540747913346-19e32dc3e97e?w=200&h=200&fit=crop&q=80',
-      primary_color || '#1e3a8a',
-      secondary_color || '#3b82f6',
-      captain_name || 'TBD',
-      Number(initial_budget) || 150
-    );
+      code: code.toUpperCase(),
+      logo_url: logo_url || 'https://images.unsplash.com/photo-1540747913346-19e32dc3e97e?w=200&h=200&fit=crop&q=80',
+      primary_color: primary_color || '#1e3a8a',
+      secondary_color: secondary_color || '#3b82f6',
+      captain_name: captain_name || 'TBD',
+      initial_budget: Number(initial_budget) || 150,
+      created_at: new Date().toISOString(),
+    };
+
+    if (adminDb) {
+      try {
+        await adminDb.collection('teams').doc(id).set(newTeamData);
+      } catch (fErr: any) {
+        console.warn('Firestore team creation notice:', fErr.message);
+      }
+    }
+
+    try {
+      db.prepare(`
+        INSERT INTO teams (id, name, code, logo_url, primary_color, secondary_color, captain_name, initial_budget)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        id,
+        newTeamData.name,
+        newTeamData.code,
+        newTeamData.logo_url,
+        newTeamData.primary_color,
+        newTeamData.secondary_color,
+        newTeamData.captain_name,
+        newTeamData.initial_budget
+      );
+    } catch {}
 
     logAudit(user.id, user.name, user.role, 'CREATE_TEAM', `Created team ${name} (${code})`);
 
-    const teams = getTeamsWithBudgets();
+    const teams = await getTeamsWithBudgets();
     return NextResponse.json({ teams });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 400 });

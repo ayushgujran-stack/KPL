@@ -1,7 +1,8 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, connection } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
 import { db } from '@/lib/db';
-import { connection } from 'next/server';
+import { adminDb } from '@/lib/firebase-admin';
+import { getFirestoreAuditLogs } from '@/lib/firestore-service';
 
 export async function GET() {
   try {
@@ -9,6 +10,15 @@ export async function GET() {
     const user = await getCurrentUser();
     if (!user || user.role !== 'super_admin') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+    }
+
+    if (adminDb) {
+      try {
+        const logs = await getFirestoreAuditLogs(100);
+        return NextResponse.json({ logs });
+      } catch (err: any) {
+        console.warn('Firestore getAuditLogs fallback to SQLite:', err.message);
+      }
     }
 
     const logs = db.prepare(`SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT 100`).all();

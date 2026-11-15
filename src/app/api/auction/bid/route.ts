@@ -26,7 +26,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Captains can only place bids for their own team' }, { status: 403 });
     }
 
-    const state = placeBid(teamId, amount, user);
+    const state = await placeBid(teamId, amount, user);
     return NextResponse.json(state);
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 400 });

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { getUploadedMedia } from '@/lib/firestore-service';
 import fs from 'fs';
 import path from 'path';
 
@@ -50,7 +51,31 @@ export async function GET(req: Request, { params }: { params: Promise<{ path: st
       });
     }
 
-    // 3. Fallback to SQLite uploaded_media database store
+    // 3. Check Cloud Firestore uploaded_media collection
+    try {
+      const cloudMedia = await getUploadedMedia(filename);
+      if (cloudMedia && cloudMedia.buffer) {
+        contentType = cloudMedia.mime_type || contentType;
+        try {
+          const cacheDir = path.dirname(tmpDiskPath);
+          if (!fs.existsSync(cacheDir)) {
+            fs.mkdirSync(cacheDir, { recursive: true });
+          }
+          fs.writeFileSync(tmpDiskPath, cloudMedia.buffer);
+        } catch {}
+
+        return new Response(new Uint8Array(cloudMedia.buffer), {
+          headers: {
+            'Content-Type': contentType,
+            'Cache-Control': 'public, max-age=31536000, immutable',
+          },
+        });
+      }
+    } catch (fErr) {
+      console.warn('Firestore media fetch notice:', fErr);
+    }
+
+    // 4. Fallback to SQLite uploaded_media database store
     try {
       const mediaRecord = db
         .prepare('SELECT mime_type, data FROM uploaded_media WHERE filename = ?')

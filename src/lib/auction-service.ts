@@ -1,5 +1,18 @@
 import { db } from './db';
-import { Team, Player, AuctionEvent, Bid, AuctionResult, User, AuditLog, TeamRetention, AuctionStatus, VALID_AUCTION_TRANSITIONS } from '@/types';
+import { adminDb } from './firebase-admin';
+import * as firestoreService from './firestore-service';
+import {
+  Team,
+  Player,
+  AuctionEvent,
+  Bid,
+  AuctionResult,
+  User,
+  AuditLog,
+  TeamRetention,
+  AuctionStatus,
+  VALID_AUCTION_TRANSITIONS,
+} from '@/types';
 import crypto from 'crypto';
 
 export interface AuctionStatePayload {
@@ -20,10 +33,12 @@ export interface AuctionStatePayload {
 export function normalizeAuctionStatus(rawStatus?: string): AuctionStatus {
   if (!rawStatus) return 'NOT_STARTED';
   const upper = rawStatus.toUpperCase();
-  if (upper === 'DRAWN' || upper === 'DRAWING') return 'RANDOM_DRAW';
-  if (upper === 'PAUSED') return 'BIDDING_PAUSED';
-  if (upper === 'SOLD' || upper === 'UNSOLD') return 'RESULT_COMPLETED';
-  if (upper === 'COMPLETED') return 'AUCTION_COMPLETED';
+  if (upper === 'DRAWN' || upper === 'DRAWING' || upper === 'RANDOM_DRAW') return 'RANDOM_DRAW';
+  if (upper === 'PLAYER_READY') return 'PLAYER_READY';
+  if (upper === 'BIDDING') return 'BIDDING';
+  if (upper === 'PAUSED' || upper === 'BIDDING_PAUSED') return 'BIDDING_PAUSED';
+  if (upper === 'SOLD' || upper === 'UNSOLD' || upper === 'RESULT_COMPLETED') return 'RESULT_COMPLETED';
+  if (upper === 'COMPLETED' || upper === 'AUCTION_COMPLETED') return 'AUCTION_COMPLETED';
   if (Object.keys(VALID_AUCTION_TRANSITIONS).includes(upper)) {
     return upper as AuctionStatus;
   }
@@ -41,32 +56,37 @@ export function validateAuctionTransition(currentStatus: AuctionStatus, newStatu
 }
 
 export function logAudit(userId: string, userName: string, userRole: string, action: string, details: string) {
-  const id = crypto.randomUUID();
-  db.prepare(`
-    INSERT INTO audit_logs (id, user_id, user_name, user_role, action, details)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `).run(id, userId, userName, userRole, action, details);
+  if (adminDb) {
+    firestoreService.logFirestoreAudit(userId, userName, userRole, action, details).catch(() => {});
+  }
+  try {
+    const id = crypto.randomUUID();
+    db.prepare(`
+      INSERT INTO audit_logs (id, user_id, user_name, user_role, action, details)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(id, userId, userName, userRole, action, details);
+  } catch {}
 }
 
-export function getTeamsWithBudgets(): Team[] {
+// ---------------------------------------------------------------------------
+// 1. Teams with Budgets
+// ---------------------------------------------------------------------------
+export function localGetTeamsWithBudgets(): Team[] {
   const teams = db.prepare(`SELECT * FROM teams ORDER BY name ASC`).all() as any[];
 
   return teams.map((team) => {
-    // Retention spent
     const retRow = db.prepare(`
       SELECT COALESCE(SUM(points), 0) as total_retention
       FROM team_retentions
       WHERE team_id = ?
     `).get(team.id) as { total_retention: number };
 
-    // Auction spent (only confirmed sold)
     const aucRow = db.prepare(`
       SELECT COALESCE(SUM(final_price), 0) as total_auction
       FROM auction_results
       WHERE team_id = ? AND status = 'sold'
     `).get(team.id) as { total_auction: number };
 
-    // Player counts (retained + sold)
     const countRow = db.prepare(`
       SELECT COUNT(*) as cnt
       FROM (
@@ -90,12 +110,47 @@ export function getTeamsWithBudgets(): Team[] {
   });
 }
 
-export function getAuctionState(): AuctionStatePayload {
+function isFirestoreSystemError(err: any): boolean {
+  if (!err) return false;
+  const msg = (err.message || '').toLowerCase();
+  const code = (err.code || '').toString().toLowerCase();
+  if (['unavailable', 'deadline_exceeded', 'resource_exhausted', 'internal', 'unauthenticated', '14', '4', '8', '13', '16'].includes(code)) {
+    return true;
+  }
+  if (
+    msg.includes('econnrefused') ||
+    msg.includes('econnreset') ||
+    msg.includes('etimedout') ||
+    msg.includes('could not connect') ||
+    msg.includes('network error') ||
+    msg.includes('service unavailable')
+  ) {
+    return true;
+  }
+  return false;
+}
+
+export async function getTeamsWithBudgets(): Promise<Team[]> {
+  if (adminDb) {
+    try {
+      const fTeams = await firestoreService.getFirestoreTeamsWithBudgets();
+      if (fTeams && fTeams.length > 0) return fTeams;
+    } catch (err: any) {
+      console.warn('Firestore getTeamsWithBudgets fallback to SQLite:', err.message);
+    }
+  }
+  return localGetTeamsWithBudgets();
+}
+
+// ---------------------------------------------------------------------------
+// 2. Authoritative Auction State
+// ---------------------------------------------------------------------------
+export function localGetAuctionState(): AuctionStatePayload {
   const event = db.prepare(`SELECT * FROM auction_events WHERE id = 'kpl-2026'`).get() as AuctionEvent;
   if (event) {
     event.status = normalizeAuctionStatus(event.status);
   }
-  const teams = getTeamsWithBudgets();
+  const teams = localGetTeamsWithBudgets();
 
   let currentPlayer: Player | null = null;
   if (event && event.current_player_id) {
@@ -107,7 +162,6 @@ export function getAuctionState(): AuctionStatePayload {
     currentBidTeam = teams.find((t) => t.id === event.current_bid_team_id) || null;
   }
 
-  // Recent bids
   const recentBids = db.prepare(`
     SELECT b.*, t.name as team_name, t.primary_color as team_color, t.code as team_code
     FROM bids b
@@ -117,7 +171,6 @@ export function getAuctionState(): AuctionStatePayload {
     LIMIT 15
   `).all(event?.current_player_id || '') as any[];
 
-  // Recent auction results
   const recentResults = db.prepare(`
     SELECT r.*, p.name as player_name, p.role as player_role, t.name as team_name, t.primary_color as team_color
     FROM auction_results r
@@ -128,7 +181,6 @@ export function getAuctionState(): AuctionStatePayload {
     LIMIT 10
   `).all() as any[];
 
-  // Latest result for current stage
   let latestResult: any = null;
   if (event && event.current_player_id) {
     latestResult = db.prepare(`
@@ -142,7 +194,6 @@ export function getAuctionState(): AuctionStatePayload {
     `).get(event.current_player_id) || null;
   }
 
-  // Counts
   const totalPlayersRow = db.prepare(`SELECT COUNT(*) as count FROM players WHERE is_active = 1`).get() as { count: number };
   const soldRow = db.prepare(`SELECT COUNT(DISTINCT player_id) as count FROM auction_results WHERE status = 'sold'`).get() as { count: number };
   const unsoldRow = db.prepare(`SELECT COUNT(*) as count FROM players WHERE status = 'unsold' AND is_active = 1`).get() as { count: number };
@@ -170,11 +221,25 @@ export function getAuctionState(): AuctionStatePayload {
   };
 }
 
-export function startRandomPlayerDraw(category: string, user: { id: string; name: string; role: string }) {
+export async function getAuctionState(): Promise<AuctionStatePayload> {
+  if (adminDb) {
+    try {
+      const fState = await firestoreService.getFirestoreAuctionState();
+      if (fState) return fState;
+    } catch (err: any) {
+      console.warn('Firestore getAuctionState fallback to SQLite:', err.message);
+    }
+  }
+  return localGetAuctionState();
+}
+
+// ---------------------------------------------------------------------------
+// 3. Random Player Lottery Draw
+// ---------------------------------------------------------------------------
+export function localStartRandomPlayerDraw(category: string, user: { id: string; name: string; role: string }) {
   const event = db.prepare(`SELECT * FROM auction_events WHERE id = 'kpl-2026'`).get() as AuctionEvent;
   const currentStatus = normalizeAuctionStatus(event?.status);
 
-  // Authoritative State Check: Allow draw only from NOT_STARTED, RANDOM_DRAW, or RESULT_COMPLETED
   if (['PLAYER_READY', 'BIDDING', 'BIDDING_PAUSED'].includes(currentStatus)) {
     throw new Error(`Cannot start a new lottery draw while a player auction is active on the podium (Current Status: ${currentStatus}). Declare SOLD/UNSOLD and finish the round first.`);
   }
@@ -193,12 +258,10 @@ export function startRandomPlayerDraw(category: string, user: { id: string; name
     query += ` AND gender = 'Female'`;
   }
 
-  // Do not select unsold players automatically unless all available are exhausted
   const availableCheckQuery = query + ` AND status != 'unsold'`;
   let eligiblePlayers = db.prepare(availableCheckQuery).all(...params) as Player[];
 
   if (eligiblePlayers.length === 0) {
-    // If no never-drawn players left, check if unsold players exist in this category
     eligiblePlayers = db.prepare(query).all(...params) as Player[];
   }
 
@@ -206,17 +269,14 @@ export function startRandomPlayerDraw(category: string, user: { id: string; name
     throw new Error(`No eligible players remaining for draw category: "${category}"!`);
   }
 
-  // Secure random selection with equal probability
   const randomIndex = crypto.randomInt(0, eligiblePlayers.length);
   const selectedPlayer = eligiblePlayers[randomIndex];
 
-  // Candidates for animation preview
   const sampleCandidates = [...eligiblePlayers]
     .sort(() => 0.5 - Math.random())
     .slice(0, 15)
     .map((p) => ({ id: p.id, name: p.name, photo_url: p.photo_url, role: p.role, base_price: p.base_price }));
 
-  // Ensure selected player is at the end of the candidate stream
   if (!sampleCandidates.find((c) => c.id === selectedPlayer.id)) {
     sampleCandidates.push({
       id: selectedPlayer.id,
@@ -229,7 +289,6 @@ export function startRandomPlayerDraw(category: string, user: { id: string; name
 
   const drawId = crypto.randomUUID();
 
-  // Atomically update draw & event: Status transitions to RANDOM_DRAW
   const tx = db.transaction(() => {
     db.prepare(`
       INSERT INTO random_draws (id, auction_event_id, player_id, draw_category, drawn_by_user_id, confirmed)
@@ -266,7 +325,39 @@ export function startRandomPlayerDraw(category: string, user: { id: string; name
   };
 }
 
-export function confirmPlayerForAuction(user: { id: string; name: string; role: string }) {
+export async function startRandomPlayerDraw(category: string, user: { id: string; name: string; role: string }) {
+  if (adminDb) {
+    try {
+      const res = await firestoreService.startFirestoreRandomPlayerDraw(category, user);
+      try {
+        const p = res.selectedPlayer;
+        if (p) {
+          db.prepare(`
+            UPDATE auction_events
+            SET status = 'RANDOM_DRAW',
+                current_player_id = ?,
+                current_bid = ?,
+                current_bid_team_id = NULL,
+                draw_category = ?,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = 'kpl-2026'
+          `).run(p.id, p.base_price, category);
+          db.prepare(`UPDATE players SET status = 'in_auction' WHERE id = ?`).run(p.id);
+        }
+      } catch {}
+      return res;
+    } catch (err: any) {
+      if (!isFirestoreSystemError(err)) throw err;
+      console.warn('Firestore startRandomPlayerDraw fallback to SQLite:', err.message);
+    }
+  }
+  return localStartRandomPlayerDraw(category, user);
+}
+
+// ---------------------------------------------------------------------------
+// 4. Confirm Player for Auction Podium
+// ---------------------------------------------------------------------------
+export function localConfirmPlayerForAuction(user: { id: string; name: string; role: string }) {
   const event = db.prepare(`SELECT * FROM auction_events WHERE id = 'kpl-2026'`).get() as AuctionEvent;
   const currentStatus = normalizeAuctionStatus(event?.status);
 
@@ -279,21 +370,18 @@ export function confirmPlayerForAuction(user: { id: string; name: string; role: 
   const player = db.prepare(`SELECT * FROM players WHERE id = ?`).get(event.current_player_id) as Player;
 
   const tx = db.transaction(() => {
-    // 1. Mark random draw as confirmed
     db.prepare(`
       UPDATE random_draws
       SET confirmed = 1
       WHERE auction_event_id = 'kpl-2026' AND player_id = ?
     `).run(player.id);
 
-    // 2. Mark player as in_auction
     db.prepare(`
       UPDATE players
       SET status = 'in_auction'
       WHERE id = ?
     `).run(player.id);
 
-    // 3. Move auction status to PLAYER_READY (Step 2 - podium display, countdown NOT ticking yet)
     db.prepare(`
       UPDATE auction_events
       SET status = 'PLAYER_READY',
@@ -314,10 +402,34 @@ export function confirmPlayerForAuction(user: { id: string; name: string; role: 
   });
 
   tx();
-  return getAuctionState();
+  return localGetAuctionState();
 }
 
-export function startBidding(user: { id: string; name: string; role: string }) {
+export async function confirmPlayerForAuction(user: { id: string; name: string; role: string }) {
+  if (adminDb) {
+    try {
+      const res = await firestoreService.confirmFirestorePlayer(user);
+      try {
+        db.prepare(`
+          UPDATE auction_events
+          SET status = 'PLAYER_READY',
+              updated_at = CURRENT_TIMESTAMP
+          WHERE id = 'kpl-2026'
+        `).run();
+      } catch {}
+      return res;
+    } catch (err: any) {
+      if (!isFirestoreSystemError(err)) throw err;
+      console.warn('Firestore confirmPlayerForAuction fallback to SQLite:', err.message);
+    }
+  }
+  return localConfirmPlayerForAuction(user);
+}
+
+// ---------------------------------------------------------------------------
+// 5. Start Bidding & Live Countdown
+// ---------------------------------------------------------------------------
+export function localStartBidding(user: { id: string; name: string; role: string }) {
   const event = db.prepare(`SELECT * FROM auction_events WHERE id = 'kpl-2026'`).get() as AuctionEvent;
   const currentStatus = normalizeAuctionStatus(event?.status);
 
@@ -348,10 +460,39 @@ export function startBidding(user: { id: string; name: string; role: string }) {
   });
 
   tx();
-  return getAuctionState();
+  return localGetAuctionState();
 }
 
-export function placeBid(teamId: string, amount: number, user: { id: string; name: string; role: string; team_id?: string | null }) {
+export async function startBidding(user: { id: string; name: string; role: string }) {
+  if (adminDb) {
+    try {
+      const res = await firestoreService.startFirestoreBidding(user);
+      try {
+        db.prepare(`
+          UPDATE auction_events
+          SET status = 'BIDDING',
+              bid_timer = timer_duration,
+              updated_at = CURRENT_TIMESTAMP
+          WHERE id = 'kpl-2026'
+        `).run();
+      } catch {}
+      return res;
+    } catch (err: any) {
+      if (!isFirestoreSystemError(err)) throw err;
+      console.warn('Firestore startBidding fallback to SQLite:', err.message);
+    }
+  }
+  return localStartBidding(user);
+}
+
+// ---------------------------------------------------------------------------
+// 6. Place Atomic Bid
+// ---------------------------------------------------------------------------
+export function localPlaceBid(
+  teamId: string,
+  amount: number,
+  user: { id: string; name: string; role: string; team_id?: string | null }
+) {
   const tx = db.transaction(() => {
     const event = db.prepare(`SELECT * FROM auction_events WHERE id = 'kpl-2026'`).get() as AuctionEvent;
     const currentStatus = normalizeAuctionStatus(event?.status);
@@ -372,24 +513,20 @@ export function placeBid(teamId: string, amount: number, user: { id: string; nam
       throw new Error('No active player in the auction to bid on.');
     }
 
-    // Role-based validation
     if (user.role === 'captain' && user.team_id !== teamId) {
       throw new Error('Captains can only place bids on behalf of their assigned team!');
     }
 
-    // Check team existence
     const team = db.prepare(`SELECT * FROM teams WHERE id = ?`).get(teamId) as Team;
     if (!team) {
       throw new Error('Team not found.');
     }
 
-    // Prevent team from bidding against itself
     if (event.current_bid_team_id === teamId) {
       throw new Error(`${team.name} is already the highest bidder at ${event.current_bid} pts! Cannot bid against yourself.`);
     }
 
-    // Calculate real-time budget
-    const teams = getTeamsWithBudgets();
+    const teams = localGetTeamsWithBudgets();
     const teamWithBudget = teams.find((t) => t.id === teamId);
     if (!teamWithBudget) {
       throw new Error('Unable to compute team budget.');
@@ -401,14 +538,11 @@ export function placeBid(teamId: string, amount: number, user: { id: string; nam
       );
     }
 
-    // Bid amount validation
     if (!event.current_bid_team_id) {
-      // First bid can match or exceed base price
       if (amount < event.current_bid) {
         throw new Error(`First bid must be at least the base price of ${event.current_bid} pts.`);
       }
     } else {
-      // Subsequent bids must strictly exceed current bid
       if (amount <= event.current_bid) {
         throw new Error(`Bid amount (${amount} pts) must be strictly higher than current bid of ${event.current_bid} pts!`);
       }
@@ -416,13 +550,11 @@ export function placeBid(teamId: string, amount: number, user: { id: string; nam
 
     const bidId = crypto.randomUUID();
 
-    // Record the bid
     db.prepare(`
       INSERT INTO bids (id, auction_event_id, player_id, team_id, amount, bidder_user_id)
       VALUES (?, 'kpl-2026', ?, ?, ?, ?)
     `).run(bidId, event.current_player_id, teamId, amount, user.id);
 
-    // Update auction state & reset timer
     db.prepare(`
       UPDATE auction_events
       SET current_bid = ?,
@@ -442,10 +574,48 @@ export function placeBid(teamId: string, amount: number, user: { id: string; nam
   });
 
   tx();
-  return getAuctionState();
+  return localGetAuctionState();
 }
 
-export function declareSold(user: { id: string; name: string; role: string }) {
+export async function placeBid(
+  teamId: string,
+  amount: number,
+  user: { id: string; name: string; role: string; team_id?: string | null }
+) {
+  if (adminDb) {
+    try {
+      const res = await firestoreService.placeFirestoreBid(teamId, amount, user);
+      try {
+        const player = res?.currentPlayer;
+        if (player) {
+          const bidId = crypto.randomUUID();
+          db.prepare(`
+            INSERT INTO bids (id, auction_event_id, player_id, team_id, bidder_user_id, amount)
+            VALUES (?, 'kpl-2026', ?, ?, ?, ?)
+          `).run(bidId, player.id, teamId, user.id, amount);
+          db.prepare(`
+            UPDATE auction_events
+            SET current_bid = ?,
+                current_bid_team_id = ?,
+                bid_timer = timer_duration,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = 'kpl-2026'
+          `).run(amount, teamId);
+        }
+      } catch {}
+      return res;
+    } catch (err: any) {
+      if (!isFirestoreSystemError(err)) throw err;
+      console.warn('Firestore placeBid fallback to SQLite:', err.message);
+    }
+  }
+  return localPlaceBid(teamId, amount, user);
+}
+
+// ---------------------------------------------------------------------------
+// 7. Declare SOLD
+// ---------------------------------------------------------------------------
+export function localDeclareSold(user: { id: string; name: string; role: string }) {
   const tx = db.transaction(() => {
     const event = db.prepare(`SELECT * FROM auction_events WHERE id = 'kpl-2026'`).get() as AuctionEvent;
     const currentStatus = normalizeAuctionStatus(event?.status);
@@ -464,7 +634,6 @@ export function declareSold(user: { id: string; name: string; role: string }) {
     const team = db.prepare(`SELECT * FROM teams WHERE id = ?`).get(event.current_bid_team_id) as Team;
     const resultId = crypto.randomUUID();
 
-    // 1. Mark player as sold
     db.prepare(`
       UPDATE players
       SET status = 'sold',
@@ -473,13 +642,11 @@ export function declareSold(user: { id: string; name: string; role: string }) {
       WHERE id = ?
     `).run(event.current_bid, team.id, player.id);
 
-    // 2. Insert into auction_results
     db.prepare(`
       INSERT INTO auction_results (id, auction_event_id, player_id, team_id, final_price, status, confirmed_by)
       VALUES (?, 'kpl-2026', ?, ?, ?, 'sold', ?)
     `).run(resultId, player.id, team.id, event.current_bid, user.name);
 
-    // 3. Move auction status to RESULT_COMPLETED (stays stable on podium)
     db.prepare(`
       UPDATE auction_events
       SET status = 'RESULT_COMPLETED',
@@ -497,10 +664,51 @@ export function declareSold(user: { id: string; name: string; role: string }) {
   });
 
   tx();
-  return getAuctionState();
+  return localGetAuctionState();
 }
 
-export function declareUnsold(user: { id: string; name: string; role: string }) {
+export async function declareSold(user: { id: string; name: string; role: string }) {
+  if (adminDb) {
+    try {
+      const res = await firestoreService.declareFirestoreSold(user);
+      try {
+        const event = res?.event;
+        const player = res?.currentPlayer;
+        const teamId = event?.current_bid_team_id;
+        if (player && teamId) {
+          const resultId = crypto.randomUUID();
+          db.prepare(`
+            UPDATE players
+            SET status = 'sold',
+                sold_price = ?,
+                sold_to_team_id = ?
+            WHERE id = ?
+          `).run(event.current_bid, teamId, player.id);
+          db.prepare(`
+            INSERT INTO auction_results (id, auction_event_id, player_id, team_id, final_price, status, confirmed_by)
+            VALUES (?, 'kpl-2026', ?, ?, ?, 'sold', ?)
+          `).run(resultId, player.id, teamId, event.current_bid, user.name);
+          db.prepare(`
+            UPDATE auction_events
+            SET status = 'RESULT_COMPLETED',
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = 'kpl-2026'
+          `).run();
+        }
+      } catch {}
+      return res;
+    } catch (err: any) {
+      if (!isFirestoreSystemError(err)) throw err;
+      console.warn('Firestore declareSold fallback to SQLite:', err.message);
+    }
+  }
+  return localDeclareSold(user);
+}
+
+// ---------------------------------------------------------------------------
+// 8. Declare UNSOLD
+// ---------------------------------------------------------------------------
+export function localDeclareUnsold(user: { id: string; name: string; role: string }) {
   const tx = db.transaction(() => {
     const event = db.prepare(`SELECT * FROM auction_events WHERE id = 'kpl-2026'`).get() as AuctionEvent;
     const currentStatus = normalizeAuctionStatus(event?.status);
@@ -514,7 +722,6 @@ export function declareUnsold(user: { id: string; name: string; role: string }) 
     const player = db.prepare(`SELECT * FROM players WHERE id = ?`).get(event.current_player_id) as Player;
     const resultId = crypto.randomUUID();
 
-    // 1. Mark player as unsold
     db.prepare(`
       UPDATE players
       SET status = 'unsold',
@@ -523,13 +730,11 @@ export function declareUnsold(user: { id: string; name: string; role: string }) 
       WHERE id = ?
     `).run(player.id);
 
-    // 2. Insert into auction_results
     db.prepare(`
       INSERT INTO auction_results (id, auction_event_id, player_id, team_id, final_price, status, confirmed_by)
       VALUES (?, 'kpl-2026', ?, NULL, 0, 'unsold', ?)
     `).run(resultId, player.id, user.name);
 
-    // 3. Move auction status to RESULT_COMPLETED
     db.prepare(`
       UPDATE auction_events
       SET status = 'RESULT_COMPLETED',
@@ -548,17 +753,56 @@ export function declareUnsold(user: { id: string; name: string; role: string }) 
   });
 
   tx();
-  return getAuctionState();
+  return localGetAuctionState();
 }
 
-export function nextRandomDraw(user: { id: string; name: string; role: string }) {
+export async function declareUnsold(user: { id: string; name: string; role: string }) {
+  if (adminDb) {
+    try {
+      const res = await firestoreService.declareFirestoreUnsold(user);
+      try {
+        const player = res?.currentPlayer;
+        if (player) {
+          const resultId = crypto.randomUUID();
+          db.prepare(`
+            UPDATE players
+            SET status = 'unsold',
+                sold_price = NULL,
+                sold_to_team_id = NULL
+            WHERE id = ?
+          `).run(player.id);
+          db.prepare(`
+            INSERT INTO auction_results (id, auction_event_id, player_id, team_id, final_price, status, confirmed_by)
+            VALUES (?, 'kpl-2026', ?, NULL, 0, 'unsold', ?)
+          `).run(resultId, player.id, user.name);
+          db.prepare(`
+            UPDATE auction_events
+            SET status = 'RESULT_COMPLETED',
+                current_bid_team_id = NULL,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = 'kpl-2026'
+          `).run();
+        }
+      } catch {}
+      return res;
+    } catch (err: any) {
+      if (!isFirestoreSystemError(err)) throw err;
+      console.warn('Firestore declareUnsold fallback to SQLite:', err.message);
+    }
+  }
+  return localDeclareUnsold(user);
+}
+
+// ---------------------------------------------------------------------------
+// 9. Next Random Draw
+// ---------------------------------------------------------------------------
+export function localNextRandomDraw(user: { id: string; name: string; role: string }) {
   const tx = db.transaction(() => {
     const event = db.prepare(`SELECT * FROM auction_events WHERE id = 'kpl-2026'`).get() as AuctionEvent;
     const currentStatus = normalizeAuctionStatus(event?.status);
 
     validateAuctionTransition(currentStatus, 'RANDOM_DRAW');
 
-    // Step 5: Organiser manually clears completed auction and moves to RANDOM_DRAW
     db.prepare(`
       UPDATE auction_events
       SET status = 'RANDOM_DRAW',
@@ -580,10 +824,27 @@ export function nextRandomDraw(user: { id: string; name: string; role: string })
   });
 
   tx();
-  return getAuctionState();
+  return localGetAuctionState();
 }
 
-export function reintroducePlayer(playerId: string, user: { id: string; name: string; role: string }) {
+export async function nextRandomDraw(user: { id: string; name: string; role: string }) {
+  if (adminDb) {
+    try {
+      const res = await firestoreService.nextFirestoreRandomDraw(user);
+      try { localNextRandomDraw(user); } catch {}
+      return res;
+    } catch (err: any) {
+      if (!isFirestoreSystemError(err)) throw err;
+      console.warn('Firestore nextRandomDraw fallback to SQLite:', err.message);
+    }
+  }
+  return localNextRandomDraw(user);
+}
+
+// ---------------------------------------------------------------------------
+// 10. Re-introduce Player
+// ---------------------------------------------------------------------------
+export function localReintroducePlayer(playerId: string, user: { id: string; name: string; role: string }) {
   const tx = db.transaction(() => {
     const player = db.prepare(`SELECT * FROM players WHERE id = ?`).get(playerId) as Player;
     if (!player) throw new Error('Player not found.');
@@ -606,19 +867,36 @@ export function reintroducePlayer(playerId: string, user: { id: string; name: st
   });
 
   tx();
-  return getAuctionState();
+  return localGetAuctionState();
 }
 
-export function controlAuction(
+export async function reintroducePlayer(playerId: string, user: { id: string; name: string; role: string }) {
+  if (adminDb) {
+    try {
+      const res = await firestoreService.reintroduceFirestorePlayer(playerId, user);
+      try { localReintroducePlayer(playerId, user); } catch {}
+      return res;
+    } catch (err: any) {
+      if (!isFirestoreSystemError(err)) throw err;
+      console.warn('Firestore reintroducePlayer fallback to SQLite:', err.message);
+    }
+  }
+  return localReintroducePlayer(playerId, user);
+}
+
+// ---------------------------------------------------------------------------
+// 11. Auction Podium Controls
+// ---------------------------------------------------------------------------
+export function localControlAuction(
   action: 'pause' | 'resume' | 'reset_timer' | 'set_timer_duration' | 'start_bidding' | 'next_random_draw' | 'unlock_retention',
   payload: any,
   user: { id: string; name: string; role: string }
 ) {
   if (action === 'start_bidding') {
-    return startBidding(user);
+    return localStartBidding(user);
   }
   if (action === 'next_random_draw') {
-    return nextRandomDraw(user);
+    return localNextRandomDraw(user);
   }
 
   const tx = db.transaction(() => {
@@ -662,32 +940,47 @@ export function controlAuction(
   });
 
   tx();
-  return getAuctionState();
+  return localGetAuctionState();
 }
 
-// -------------------------------------------------------------
-// RETENTION MANAGEMENT
-// -------------------------------------------------------------
-export function addRetention(teamId: string, playerId: string, points: number, user: { id: string; name: string; role: string }) {
+export async function controlAuction(
+  action: 'pause' | 'resume' | 'reset_timer' | 'set_timer_duration' | 'start_bidding' | 'next_random_draw' | 'unlock_retention',
+  payload: any,
+  user: { id: string; name: string; role: string }
+) {
+  if (adminDb) {
+    try {
+      const res = await firestoreService.controlFirestoreAuction(action, payload, user);
+      try { localControlAuction(action, payload, user); } catch {}
+      return res;
+    } catch (err: any) {
+      if (!isFirestoreSystemError(err)) throw err;
+      console.warn('Firestore controlAuction fallback to SQLite:', err.message);
+    }
+  }
+  return localControlAuction(action, payload, user);
+}
+
+// ---------------------------------------------------------------------------
+// 12. Retention Operations
+// ---------------------------------------------------------------------------
+export function localAddRetention(teamId: string, playerId: string, points: number, user: { id: string; name: string; role: string }) {
   const tx = db.transaction(() => {
     const event = db.prepare(`SELECT status FROM auction_events WHERE id = 'kpl-2026'`).get() as { status: string };
     if (normalizeAuctionStatus(event?.status) !== 'NOT_STARTED') {
       throw new Error('Retention is locked! Auction has already started or been initialized.');
     }
 
-    // Check max 2 retentions per team
     const currentCount = db.prepare(`SELECT COUNT(*) as cnt FROM team_retentions WHERE team_id = ?`).get(teamId) as { cnt: number };
     if (currentCount.cnt >= 2) {
       throw new Error('A team can retain a maximum of 2 players only!');
     }
 
-    // Check player not already retained
     const existingRet = db.prepare(`SELECT * FROM team_retentions WHERE player_id = ?`).get(playerId);
     if (existingRet) {
       throw new Error('This player is already retained by a team!');
     }
 
-    // Check team budget capacity
     const team = db.prepare(`SELECT * FROM teams WHERE id = ?`).get(teamId) as Team;
     const spentRow = db.prepare(`SELECT COALESCE(SUM(points), 0) as spent FROM team_retentions WHERE team_id = ?`).get(teamId) as { spent: number };
     if (spentRow.spent + points > team.initial_budget) {
@@ -719,10 +1012,24 @@ export function addRetention(teamId: string, playerId: string, points: number, u
   });
 
   tx();
-  return getAuctionState();
+  return localGetAuctionState();
 }
 
-export function removeRetention(retentionId: string, user: { id: string; name: string; role: string }) {
+export async function addRetention(teamId: string, playerId: string, points: number, user: { id: string; name: string; role: string }) {
+  if (adminDb) {
+    try {
+      const res = await firestoreService.addFirestoreRetention(teamId, playerId, points, user);
+      try { localAddRetention(teamId, playerId, points, user); } catch {}
+      return res;
+    } catch (err: any) {
+      if (!isFirestoreSystemError(err)) throw err;
+      console.warn('Firestore addRetention fallback to SQLite:', err.message);
+    }
+  }
+  return localAddRetention(teamId, playerId, points, user);
+}
+
+export function localRemoveRetention(retentionId: string, user: { id: string; name: string; role: string }) {
   const tx = db.transaction(() => {
     const event = db.prepare(`SELECT status FROM auction_events WHERE id = 'kpl-2026'`).get() as { status: string };
     if (normalizeAuctionStatus(event?.status) !== 'NOT_STARTED') {
@@ -752,10 +1059,24 @@ export function removeRetention(retentionId: string, user: { id: string; name: s
   });
 
   tx();
-  return getAuctionState();
+  return localGetAuctionState();
 }
 
-export function updateRetention(retentionId: string, newPoints: number, user: { id: string; name: string; role: string }) {
+export async function removeRetention(retentionId: string, user: { id: string; name: string; role: string }) {
+  if (adminDb) {
+    try {
+      const res = await firestoreService.removeFirestoreRetention(retentionId, user);
+      try { localRemoveRetention(retentionId, user); } catch {}
+      return res;
+    } catch (err: any) {
+      if (!isFirestoreSystemError(err)) throw err;
+      console.warn('Firestore removeRetention fallback to SQLite:', err.message);
+    }
+  }
+  return localRemoveRetention(retentionId, user);
+}
+
+export function localUpdateRetention(retentionId: string, newPoints: number, user: { id: string; name: string; role: string }) {
   const tx = db.transaction(() => {
     const event = db.prepare(`SELECT status FROM auction_events WHERE id = 'kpl-2026'`).get() as { status: string };
     if (normalizeAuctionStatus(event?.status) !== 'NOT_STARTED') {
@@ -792,14 +1113,27 @@ export function updateRetention(retentionId: string, newPoints: number, user: { 
   });
 
   tx();
-  return getAuctionState();
+  return localGetAuctionState();
 }
 
-// -------------------------------------------------------------
-// DATA MANAGEMENT & RESET MODULE
-// -------------------------------------------------------------
+export async function updateRetention(retentionId: string, newPoints: number, user: { id: string; name: string; role: string }) {
+  if (adminDb) {
+    try {
+      const res = await firestoreService.updateFirestoreRetention(retentionId, newPoints, user);
+      try { localUpdateRetention(retentionId, newPoints, user); } catch {}
+      return res;
+    } catch (err: any) {
+      if (!isFirestoreSystemError(err)) throw err;
+      console.warn('Firestore updateRetention fallback to SQLite:', err.message);
+    }
+  }
+  return localUpdateRetention(retentionId, newPoints, user);
+}
 
-export function clearTransactionData(confirmationPhrase: string, user: { id: string; name: string; role: string }) {
+// ---------------------------------------------------------------------------
+// 13. Data Management & Reset
+// ---------------------------------------------------------------------------
+export function localClearTransactionData(confirmationPhrase: string, user: { id: string; name: string; role: string }) {
   if (user.role !== 'super_admin') {
     throw new Error('Unauthorized: Only Super Admin can clear transaction data!');
   }
@@ -814,21 +1148,15 @@ export function clearTransactionData(confirmationPhrase: string, user: { id: str
       throw new Error('Cannot clear transactions while live bidding is active. Pause or close the auction first.');
     }
 
-    // 1. Delete all bids
     const bidsCount = db.prepare(`SELECT COUNT(*) as cnt FROM bids`).get() as { cnt: number };
     db.prepare(`DELETE FROM bids`).run();
 
-    // 2. Delete all random draws
     const drawsCount = db.prepare(`SELECT COUNT(*) as cnt FROM random_draws`).get() as { cnt: number };
     db.prepare(`DELETE FROM random_draws`).run();
 
-    // 3. Delete auction results
     const resultsCount = db.prepare(`SELECT COUNT(*) as cnt FROM auction_results`).get() as { cnt: number };
     db.prepare(`DELETE FROM auction_results`).run();
 
-    // 4. Reset player statuses:
-    // Retained players stay 'retained'
-    // All other players reset to 'available'
     db.prepare(`
       UPDATE players
       SET status = 'available',
@@ -837,7 +1165,6 @@ export function clearTransactionData(confirmationPhrase: string, user: { id: str
       WHERE id NOT IN (SELECT player_id FROM team_retentions)
     `).run();
 
-    // 5. Reset auction event
     db.prepare(`
       UPDATE auction_events
       SET status = 'NOT_STARTED',
@@ -862,7 +1189,21 @@ export function clearTransactionData(confirmationPhrase: string, user: { id: str
   return { success: true, message: 'All auction transactions cleared successfully. Team balances recalculated.' };
 }
 
-export function resetCompleteAuction(keepRetention: boolean, confirmationPhrase: string, user: { id: string; name: string; role: string }) {
+export async function clearTransactionData(confirmationPhrase: string, user: { id: string; name: string; role: string }) {
+  if (adminDb) {
+    try {
+      const res = await firestoreService.clearFirestoreTransactions(confirmationPhrase, user);
+      try { localClearTransactionData(confirmationPhrase, user); } catch {}
+      return res;
+    } catch (err: any) {
+      if (!isFirestoreSystemError(err)) throw err;
+      console.warn('Firestore clearTransactions fallback to SQLite:', err.message);
+    }
+  }
+  return localClearTransactionData(confirmationPhrase, user);
+}
+
+export function localResetCompleteAuction(keepRetention: boolean, confirmationPhrase: string, user: { id: string; name: string; role: string }) {
   if (user.role !== 'super_admin') {
     throw new Error('Unauthorized: Only Super Admin can perform a complete auction reset!');
   }
@@ -923,7 +1264,21 @@ export function resetCompleteAuction(keepRetention: boolean, confirmationPhrase:
   return { success: true, message: 'Complete auction reset completed successfully.' };
 }
 
-export function clearMasterData(
+export async function resetCompleteAuction(keepRetention: boolean, confirmationPhrase: string, user: { id: string; name: string; role: string }) {
+  if (adminDb) {
+    try {
+      const res = await firestoreService.resetFirestoreAuction(keepRetention, confirmationPhrase, user);
+      try { localResetCompleteAuction(keepRetention, confirmationPhrase, user); } catch {}
+      return res;
+    } catch (err: any) {
+      if (!isFirestoreSystemError(err)) throw err;
+      console.warn('Firestore resetCompleteAuction fallback to SQLite:', err.message);
+    }
+  }
+  return localResetCompleteAuction(keepRetention, confirmationPhrase, user);
+}
+
+export function localClearMasterData(
   options: { players?: boolean; teams?: boolean; categories?: boolean },
   confirmationPhrase: string,
   user: { id: string; name: string; role: string }
@@ -937,7 +1292,6 @@ export function clearMasterData(
   }
 
   const tx = db.transaction(() => {
-    // Stop if auction in bidding
     const event = db.prepare(`SELECT status FROM auction_events WHERE id = 'kpl-2026'`).get() as { status: string };
     if (normalizeAuctionStatus(event?.status) === 'BIDDING') {
       throw new Error('Cannot clear master records while auction is active.');
@@ -958,7 +1312,6 @@ export function clearMasterData(
 
     if (options.teams) {
       const count = db.prepare(`SELECT COUNT(*) as cnt FROM teams`).get() as { cnt: number };
-      // Safely unlink teams from captain users without deleting captain accounts
       db.prepare(`UPDATE users SET team_id = NULL WHERE role = 'captain'`).run();
       db.prepare(`DELETE FROM team_retentions`).run();
       db.prepare(`DELETE FROM bids`).run();
@@ -980,7 +1333,25 @@ export function clearMasterData(
   return { success: true, message: 'Selected master data cleared safely.' };
 }
 
-export function createDatabaseBackup(user: { id: string; name: string; role: string }) {
+export async function clearMasterData(
+  options: { players?: boolean; teams?: boolean; categories?: boolean },
+  confirmationPhrase: string,
+  user: { id: string; name: string; role: string }
+) {
+  if (adminDb) {
+    try {
+      const res = await firestoreService.clearFirestoreMasters(options, confirmationPhrase, user);
+      try { localClearMasterData(options, confirmationPhrase, user); } catch {}
+      return res;
+    } catch (err: any) {
+      if (!isFirestoreSystemError(err)) throw err;
+      console.warn('Firestore clearMasterData fallback to SQLite:', err.message);
+    }
+  }
+  return localClearMasterData(options, confirmationPhrase, user);
+}
+
+export function localCreateDatabaseBackup(user: { id: string; name: string; role: string }) {
   const users = db.prepare(`SELECT id, username, name, role, team_id, created_at FROM users`).all();
   const teams = db.prepare(`SELECT * FROM teams`).all();
   const players = db.prepare(`SELECT * FROM players`).all();
@@ -1025,4 +1396,63 @@ export function createDatabaseBackup(user: { id: string; name: string; role: str
   logAudit(user.id, user.name, user.role, 'BACKUP_CREATED', `Database snapshot ${filename} created.`);
 
   return { backupId, filename, backupData };
+}
+
+export async function createDatabaseBackup(user: { id: string; name: string; role: string }) {
+  if (adminDb) {
+    try {
+      const [usersSnap, teamsSnap, playersSnap, retSnap, eventSnap, bidsSnap, resultsSnap, drawsSnap] = await Promise.all([
+        adminDb.collection('users').get(),
+        adminDb.collection('teams').get(),
+        adminDb.collection('players').get(),
+        adminDb.collection('team_retentions').get(),
+        adminDb.collection('auction_events').get(),
+        adminDb.collection('bids').get(),
+        adminDb.collection('auction_results').get(),
+        adminDb.collection('random_draws').get(),
+      ]);
+
+      const backupData = {
+        version: '1.0',
+        timestamp: new Date().toISOString(),
+        createdBy: user.name,
+        data: {
+          users: usersSnap.docs.map((d) => ({ id: d.id, ...d.data() })),
+          teams: teamsSnap.docs.map((d) => ({ id: d.id, ...d.data() })),
+          players: playersSnap.docs.map((d) => ({ id: d.id, ...d.data() })),
+          retentions: retSnap.docs.map((d) => ({ id: d.id, ...d.data() })),
+          event: eventSnap.docs.map((d) => ({ id: d.id, ...d.data() })),
+          bids: bidsSnap.docs.map((d) => ({ id: d.id, ...d.data() })),
+          results: resultsSnap.docs.map((d) => ({ id: d.id, ...d.data() })),
+          draws: drawsSnap.docs.map((d) => ({ id: d.id, ...d.data() })),
+        },
+        counts: {
+          users: usersSnap.size,
+          teams: teamsSnap.size,
+          players: playersSnap.size,
+          retentions: retSnap.size,
+          bids: bidsSnap.size,
+          results: resultsSnap.size,
+        },
+      };
+
+      const backupId = crypto.randomUUID();
+      const filename = `backup_kpl_${Date.now()}.json`;
+
+      await adminDb.collection('backup_records').doc(backupId).set({
+        id: backupId,
+        filename,
+        created_by: user.name,
+        record_counts: JSON.stringify(backupData.counts),
+        created_at: new Date().toISOString(),
+      });
+
+      await logAudit(user.id, user.name, user.role, 'BACKUP_CREATED', `Database snapshot ${filename} created.`);
+
+      return { backupId, filename, backupData };
+    } catch (err: any) {
+      console.warn('Firestore createDatabaseBackup fallback to SQLite:', err.message);
+    }
+  }
+  return localCreateDatabaseBackup(user);
 }

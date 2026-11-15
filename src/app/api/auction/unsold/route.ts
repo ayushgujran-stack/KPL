@@ -11,7 +11,7 @@ export async function POST() {
       return NextResponse.json({ error: 'Unauthorized: Only organisers or admin can declare UNSOLD.' }, { status: 403 });
     }
 
-    const state = declareUnsold(user);
+    const state = await declareUnsold(user);
     return NextResponse.json(state);
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 400 });

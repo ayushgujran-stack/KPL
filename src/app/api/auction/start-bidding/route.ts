@@ -11,7 +11,7 @@ export async function POST() {
       return NextResponse.json({ error: 'Unauthorized: Only organisers or admin can start bidding.' }, { status: 403 });
     }
 
-    const state = startBidding(user);
+    const state = await startBidding(user);
     return NextResponse.json(state);
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 400 });

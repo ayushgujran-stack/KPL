@@ -12,7 +12,7 @@ export async function POST(req: Request) {
     }
 
     const { category = 'all' } = await req.json().catch(() => ({}));
-    const result = startRandomPlayerDraw(category, user);
+    const result = await startRandomPlayerDraw(category, user);
     return NextResponse.json(result);
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 400 });
