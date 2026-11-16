@@ -56,7 +56,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       }
     }
 
-    if (squad.length === 0 && !adminDb) {
+    // If Firestore yielded no squad records (or threw an error), fall back to SQLite
+    if (squad.length === 0) {
       const retainedPlayers = db.prepare(`
         SELECT p.*, r.points as acquisition_price, 'retained' as acquisition_type
         FROM team_retentions r

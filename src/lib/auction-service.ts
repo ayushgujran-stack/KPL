@@ -1002,6 +1002,7 @@ export function localAddRetention(teamId: string, playerId: string, points: numb
     `).run(points, teamId, playerId);
 
     const player = db.prepare(`SELECT name FROM players WHERE id = ?`).get(playerId) as { name: string };
+    db.prepare(`UPDATE auction_events SET updated_at = CURRENT_TIMESTAMP WHERE id = 'kpl-2026'`).run();
     logAudit(
       user.id,
       user.name,
@@ -1048,6 +1049,7 @@ export function localRemoveRetention(retentionId: string, user: { id: string; na
 
     db.prepare(`DELETE FROM team_retentions WHERE id = ?`).run(retentionId);
     db.prepare(`UPDATE players SET status = 'available', sold_price = NULL, sold_to_team_id = NULL WHERE id = ?`).run(ret.player_id);
+    db.prepare(`UPDATE auction_events SET updated_at = CURRENT_TIMESTAMP WHERE id = 'kpl-2026'`).run();
 
     logAudit(
       user.id,
@@ -1101,6 +1103,7 @@ export function localUpdateRetention(retentionId: string, newPoints: number, use
 
     db.prepare(`UPDATE team_retentions SET points = ? WHERE id = ?`).run(newPoints, retentionId);
     db.prepare(`UPDATE players SET sold_price = ? WHERE id = ?`).run(newPoints, ret.player_id);
+    db.prepare(`UPDATE auction_events SET updated_at = CURRENT_TIMESTAMP WHERE id = 'kpl-2026'`).run();
 
     const player = db.prepare(`SELECT name FROM players WHERE id = ?`).get(ret.player_id) as { name: string };
     logAudit(

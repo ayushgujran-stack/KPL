@@ -864,6 +864,11 @@ export async function addFirestoreRetention(
     sold_to_team_id: teamId,
   });
 
+  // Touch auction_events updated_at to immediately trigger real-time onSnapshot on all client dashboards
+  batch.update(adminDb.collection('auction_events').doc('kpl-2026'), {
+    updated_at: new Date().toISOString(),
+  });
+
   await batch.commit();
 
   const playerDoc = await adminDb.collection('players').doc(playerId).get();
@@ -902,6 +907,9 @@ export async function removeFirestoreRetention(
     status: 'available',
     sold_price: null,
     sold_to_team_id: null,
+  });
+  batch.update(adminDb.collection('auction_events').doc('kpl-2026'), {
+    updated_at: new Date().toISOString(),
   });
 
   await batch.commit();
@@ -956,6 +964,9 @@ export async function updateFirestoreRetention(
   });
   batch.update(adminDb.collection('players').doc(ret.player_id), {
     sold_price: Number(newPoints),
+  });
+  batch.update(adminDb.collection('auction_events').doc('kpl-2026'), {
+    updated_at: new Date().toISOString(),
   });
 
   await batch.commit();

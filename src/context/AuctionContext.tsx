@@ -51,8 +51,13 @@ export function AuctionProvider({ children }: { children: React.ReactNode }) {
   const applyStateIfChanged = useCallback((newState: AuctionStatePayload) => {
     if (!newState || !newState.event) return;
 
-    // Fast state digest to prevent duplicate React re-renders and screen flickering
-    const digest = `${newState.event.id}_${newState.event.status}_${newState.event.current_player_id}_${newState.event.current_bid}_${newState.event.current_bid_team_id}_${newState.event.bid_timer}_${newState.event.updated_at}_${newState.recentBids?.[0]?.id}_${newState.soldCount}_${newState.unsoldCount}`;
+    // Fast state digest to prevent duplicate React re-renders and screen flickering.
+    // Crucial: Includes team budgets, retention spend, and squad counts so retention changes trigger immediate UI updates!
+    const teamsDigest = (newState.teams || [])
+      .map((t) => `${t.id}:${t.remaining_budget}:${t.retention_spent}:${t.auction_spent}:${t.players_count}`)
+      .join('|');
+
+    const digest = `${newState.event.id}_${newState.event.status}_${newState.event.current_player_id}_${newState.event.current_bid}_${newState.event.current_bid_team_id}_${newState.event.bid_timer}_${newState.event.updated_at}_${newState.recentBids?.[0]?.id}_${newState.soldCount}_${newState.unsoldCount}_${newState.retainedCount}_${teamsDigest}`;
     if (digest === lastStateDigestRef.current) {
       return; // No state change - prevent unneeded re-rendering
     }
@@ -82,7 +87,7 @@ export function AuctionProvider({ children }: { children: React.ReactNode }) {
 
   const refreshState = useCallback(async () => {
     try {
-      const res = await fetch('/api/auction/state');
+      const res = await fetch(`/api/auction/state?_t=${Date.now()}`, { cache: 'no-store' });
       if (res.ok) {
         const data: AuctionStatePayload = await res.json();
         applyStateIfChanged(data);

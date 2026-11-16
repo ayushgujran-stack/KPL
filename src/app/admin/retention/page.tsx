@@ -30,15 +30,15 @@ export default function AdminRetentionPage() {
     setLoading(true);
     try {
       const [retRes, plyRes] = await Promise.all([
-        fetch('/api/retention', { cache: 'no-store' }),
-        fetch('/api/players?status=available', { cache: 'no-store' }),
+        fetch(`/api/retention?_t=${Date.now()}`, { cache: 'no-store' }),
+        fetch(`/api/players?status=available&_t=${Date.now()}`, { cache: 'no-store' }),
       ]);
 
       const retData = await retRes.json();
       const plyData = await plyRes.json();
 
-      setRetentions(retData.retentions || []);
-      setAvailablePlayers(plyData.players || []);
+      setRetentions([...(retData.retentions || [])]);
+      setAvailablePlayers([...(plyData.players || [])]);
     } catch {}
     setLoading(false);
   };
@@ -47,7 +47,7 @@ export default function AdminRetentionPage() {
     if (user && ['super_admin', 'organiser_1', 'organiser_2'].includes(user.role)) {
       fetchRetentionsAndPlayers();
     }
-  }, [state?.event?.status, user]);
+  }, [state?.event?.status, state?.event?.updated_at, user]);
 
   if (isLoading) {
     return (

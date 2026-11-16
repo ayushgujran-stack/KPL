@@ -52,7 +52,8 @@ export async function GET(req: Request) {
       }
     }
 
-    if (retentions.length === 0 && !adminDb) {
+    // If Firestore yielded no retentions (or threw an error), fall back to SQLite
+    if (retentions.length === 0) {
       retentions = db.prepare(`
         SELECT r.*,
                p.name as player_name, p.photo_url, p.gender, p.role as player_role, p.player_number, p.base_price,
