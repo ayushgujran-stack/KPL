@@ -1,7 +1,3 @@
-import dotenv from 'dotenv';
-dotenv.config({ path: '.env.local' });
-dotenv.config();
-
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
 

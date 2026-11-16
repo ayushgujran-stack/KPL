@@ -1,7 +1,3 @@
-import dotenv from 'dotenv';
-dotenv.config({ path: '.env.local' });
-dotenv.config();
-
 import { adminDb } from './firebase-admin';
 import { db } from './db';
 import {
